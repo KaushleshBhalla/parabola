@@ -1,0 +1,339 @@
+import { sql } from "drizzle-orm";
+import {
+  pgTable,
+  pgEnum,
+  uuid,
+  text,
+  boolean,
+  timestamp,
+  integer,
+  doublePrecision,
+  bigint,
+  date,
+  jsonb,
+  uniqueIndex,
+  index,
+  primaryKey,
+} from "drizzle-orm/pg-core";
+
+export const userRoleEnum = pgEnum("user_role", [
+  "owner",
+  "admin",
+  "member",
+  "viewer",
+]);
+
+export const workItemStatusEnum = pgEnum("work_item_status", [
+  "backlog",
+  "todo",
+  "in_progress",
+  "in_review",
+  "done",
+  "cancelled",
+]);
+
+export const workItemPriorityEnum = pgEnum("work_item_priority", [
+  "none",
+  "low",
+  "medium",
+  "high",
+  "urgent",
+]);
+
+export const roadmapStatusEnum = pgEnum("roadmap_status", [
+  "planned",
+  "in_progress",
+  "done",
+]);
+
+export const attachmentEntityTypeEnum = pgEnum("attachment_entity_type", [
+  "work_item",
+  "roadmap_item",
+  "chat_message",
+  "comment",
+]);
+
+// ============ USERS & SESSIONS ============
+
+export const users = pgTable(
+  "users",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: text("name").notNull(),
+    email: text("email").notNull(),
+    passwordHash: text("password_hash").notNull(),
+    passwordEncrypted: text("password_encrypted").notNull(),
+    role: userRoleEnum("role").notNull().default("member"),
+    avatarUrl: text("avatar_url"),
+    isActive: boolean("is_active").notNull().default(true),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
+    createdBy: uuid("created_by"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("users_email_idx").on(table.email),
+    uniqueIndex("users_single_owner_idx")
+      .on(table.role)
+      .where(sql`${table.role} = 'owner'`),
+  ]
+);
+
+export const sessions = pgTable(
+  "sessions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    tokenHash: text("token_hash").notNull(),
+    userAgent: text("user_agent"),
+    ip: text("ip"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("sessions_token_hash_idx").on(table.tokenHash),
+    index("sessions_user_id_idx").on(table.userId),
+  ]
+);
+
+// ============ PROJECTS ============
+
+export const projects = pgTable("projects", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull(),
+  slug: text("slug").notNull().unique(),
+  description: text("description"),
+  color: text("color"),
+  createdBy: uuid("created_by").references(() => users.id),
+  archivedAt: timestamp("archived_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export const projectCounters = pgTable("project_counters", {
+  projectId: uuid("project_id")
+    .primaryKey()
+    .references(() => projects.id, { onDelete: "cascade" }),
+  nextNumber: integer("next_number").notNull().default(1),
+});
+
+// ============ LABELS ============
+
+export const labels = pgTable(
+  "labels",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    color: text("color").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [uniqueIndex("labels_project_name_idx").on(table.projectId, table.name)]
+);
+
+// ============ WORK ITEMS ============
+
+export const workItems = pgTable(
+  "work_items",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    number: integer("number").notNull(),
+    title: text("title").notNull(),
+    description: text("description"),
+    status: workItemStatusEnum("status").notNull().default("backlog"),
+    priority: workItemPriorityEnum("priority").notNull().default("none"),
+    assigneeId: uuid("assignee_id").references(() => users.id),
+    createdBy: uuid("created_by")
+      .notNull()
+      .references(() => users.id),
+    position: doublePrecision("position").notNull().default(0),
+    dueDate: date("due_date"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("work_items_project_number_idx").on(table.projectId, table.number),
+    index("work_items_project_status_position_idx").on(
+      table.projectId,
+      table.status,
+      table.position
+    ),
+    index("work_items_assignee_idx").on(table.assigneeId),
+  ]
+);
+
+export const workItemLabels = pgTable(
+  "work_item_labels",
+  {
+    workItemId: uuid("work_item_id")
+      .notNull()
+      .references(() => workItems.id, { onDelete: "cascade" }),
+    labelId: uuid("label_id")
+      .notNull()
+      .references(() => labels.id, { onDelete: "cascade" }),
+  },
+  (table) => [primaryKey({ columns: [table.workItemId, table.labelId] })]
+);
+
+export const workItemComments = pgTable(
+  "work_item_comments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workItemId: uuid("work_item_id")
+      .notNull()
+      .references(() => workItems.id, { onDelete: "cascade" }),
+    authorId: uuid("author_id")
+      .notNull()
+      .references(() => users.id),
+    body: text("body").notNull(),
+    editedAt: timestamp("edited_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("comments_work_item_idx").on(table.workItemId, table.createdAt),
+  ]
+);
+
+// ============ ROADMAP ============
+
+export const roadmapItems = pgTable(
+  "roadmap_items",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    description: text("description"),
+    milestone: text("milestone"),
+    targetDate: date("target_date"),
+    status: roadmapStatusEnum("status").notNull().default("planned"),
+    position: doublePrecision("position").notNull().default(0),
+    createdBy: uuid("created_by")
+      .notNull()
+      .references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("roadmap_items_project_idx").on(
+      table.projectId,
+      table.targetDate,
+      table.position
+    ),
+  ]
+);
+
+// ============ CHAT ============
+
+export const chatMessages = pgTable(
+  "chat_messages",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    authorId: uuid("author_id")
+      .notNull()
+      .references(() => users.id),
+    body: text("body").notNull(),
+    editedAt: timestamp("edited_at", { withTimezone: true }),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("chat_messages_project_created_idx").on(
+      table.projectId,
+      table.createdAt
+    ),
+  ]
+);
+
+// ============ ATTACHMENTS (polymorphic) ============
+
+export const attachments = pgTable(
+  "attachments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    entityType: attachmentEntityTypeEnum("entity_type").notNull(),
+    entityId: uuid("entity_id").notNull(),
+    storagePath: text("storage_path").notNull(),
+    fileName: text("file_name").notNull(),
+    mimeType: text("mime_type").notNull(),
+    sizeBytes: bigint("size_bytes", { mode: "number" }).notNull(),
+    uploadedBy: uuid("uploaded_by")
+      .notNull()
+      .references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("attachments_entity_idx").on(table.entityType, table.entityId),
+  ]
+);
+
+// ============ ACTIVITY LOG ============
+
+export const activityLog = pgTable(
+  "activity_log",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    actorId: uuid("actor_id").references(() => users.id),
+    projectId: uuid("project_id").references(() => projects.id),
+    action: text("action").notNull(),
+    entityType: text("entity_type").notNull(),
+    entityId: uuid("entity_id"),
+    before: jsonb("before"),
+    after: jsonb("after"),
+    searchText: text("search_text").notNull().default(""),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("activity_log_actor_idx").on(table.actorId),
+    index("activity_log_project_idx").on(table.projectId),
+    index("activity_log_entity_type_idx").on(table.entityType),
+    index("activity_log_action_idx").on(table.action),
+    index("activity_log_created_at_idx").on(table.createdAt),
+    index("activity_log_project_created_idx").on(
+      table.projectId,
+      table.createdAt
+    ),
+  ]
+);
