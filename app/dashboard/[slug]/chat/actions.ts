@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db/client";
 import { chatMessages } from "@/lib/db/schema";
-import { requireUser } from "@/lib/auth/rbac";
+import { requireUser, canAccessProject } from "@/lib/auth/rbac";
 
 export async function postMessage(formData: FormData) {
   const user = await requireUser();
@@ -12,6 +12,7 @@ export async function postMessage(formData: FormData) {
   const body = String(formData.get("body") ?? "").trim();
 
   if (!body || !projectId) return;
+  if (!(await canAccessProject(user, projectId))) return;
 
   await db.insert(chatMessages).values({
     projectId,

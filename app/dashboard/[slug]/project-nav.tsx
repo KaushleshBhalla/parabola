@@ -4,12 +4,21 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
-export function ProjectNav({ slug }: { slug: string }) {
+export function ProjectNav({
+  slug,
+  canManage,
+}: {
+  slug: string;
+  canManage: boolean;
+}) {
   const pathname = usePathname();
   const tabs = [
     { label: "Work items", href: `/dashboard/${slug}/work-items` },
     { label: "Roadmap", href: `/dashboard/${slug}/roadmap` },
     { label: "Chat", href: `/dashboard/${slug}/chat` },
+    ...(canManage
+      ? [{ label: "Members", href: `/dashboard/${slug}/members` }]
+      : []),
   ];
 
   return (

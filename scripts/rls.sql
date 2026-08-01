@@ -18,3 +18,5 @@ alter table roadmap_items enable row level security;
 alter table chat_messages enable row level security;
 alter table attachments enable row level security;
 alter table activity_log enable row level security;
+alter table project_members enable row level security;
+alter table notifications enable row level security;

@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db/client";
 import { roadmapItems } from "@/lib/db/schema";
-import { requireUser } from "@/lib/auth/rbac";
+import { requireUser, canAccessProject } from "@/lib/auth/rbac";
 
 const STATUSES = ["planned", "in_progress", "done"] as const;
 type Status = (typeof STATUSES)[number];
@@ -22,6 +22,7 @@ export async function createRoadmapItem(formData: FormData) {
     : "planned";
 
   if (!title || !projectId) return;
+  if (!(await canAccessProject(user, projectId))) return;
 
   await db.insert(roadmapItems).values({
     projectId,

@@ -3,8 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { eq, sql } from "drizzle-orm";
 import { db } from "@/lib/db/client";
-import { workItems, projectCounters } from "@/lib/db/schema";
-import { requireUser } from "@/lib/auth/rbac";
+import { workItems, projectCounters, notifications } from "@/lib/db/schema";
+import { requireUser, canAccessProject, hasRole } from "@/lib/auth/rbac";
 
 const STATUSES = [
   "backlog",
@@ -34,6 +34,7 @@ export async function createWorkItem(formData: FormData) {
     : "none";
 
   if (!title || !projectId) return;
+  if (!(await canAccessProject(user, projectId))) return;
 
   const [counter] = await db
     .update(projectCounters)
@@ -41,17 +42,32 @@ export async function createWorkItem(formData: FormData) {
     .where(eq(projectCounters.projectId, projectId))
     .returning();
 
-  await db.insert(workItems).values({
-    projectId,
-    number: counter.nextNumber - 1,
-    title,
-    description: description || null,
-    priority,
-    assigneeId: assigneeIdInput || null,
-    createdBy: user.id,
-  });
+  const assigneeId = assigneeIdInput || null;
+
+  const [workItem] = await db
+    .insert(workItems)
+    .values({
+      projectId,
+      number: counter.nextNumber - 1,
+      title,
+      description: description || null,
+      priority,
+      assigneeId,
+      createdBy: user.id,
+    })
+    .returning();
+
+  if (assigneeId && assigneeId !== user.id) {
+    await db.insert(notifications).values({
+      userId: assigneeId,
+      type: "work_item_assigned",
+      body: `You were assigned "${title}".`,
+      workItemId: workItem.id,
+    });
+  }
 
   revalidatePath(`/dashboard/${slug}/work-items`);
+  revalidatePath("/dashboard/my-tasks");
 }
 
 export async function moveWorkItem(
@@ -59,8 +75,15 @@ export async function moveWorkItem(
   status: string,
   slug: string
 ) {
-  await requireUser();
+  const user = await requireUser();
   if (!(STATUSES as readonly string[]).includes(status)) return;
+
+  const [item] = await db
+    .select({ projectId: workItems.projectId })
+    .from(workItems)
+    .where(eq(workItems.id, workItemId))
+    .limit(1);
+  if (!item || !(await canAccessProject(user, item.projectId))) return;
 
   await db
     .update(workItems)
@@ -68,4 +91,44 @@ export async function moveWorkItem(
     .where(eq(workItems.id, workItemId));
 
   revalidatePath(`/dashboard/${slug}/work-items`);
+}
+
+export async function commitDueDate(
+  workItemId: string,
+  dueDate: string,
+  slug?: string
+) {
+  const user = await requireUser();
+
+  const [item] = await db
+    .select({
+      projectId: workItems.projectId,
+      assigneeId: workItems.assigneeId,
+      title: workItems.title,
+    })
+    .from(workItems)
+    .where(eq(workItems.id, workItemId))
+    .limit(1);
+  if (!item || !(await canAccessProject(user, item.projectId))) return;
+
+  const isOwnerEdit = hasRole(user.role, "admin") && user.id !== item.assigneeId;
+  const isSelfCommit = user.id === item.assigneeId;
+  if (!isOwnerEdit && !isSelfCommit) return;
+
+  await db
+    .update(workItems)
+    .set({ dueDate: dueDate || null, updatedAt: new Date() })
+    .where(eq(workItems.id, workItemId));
+
+  if (isOwnerEdit && item.assigneeId) {
+    await db.insert(notifications).values({
+      userId: item.assigneeId,
+      type: "due_date_changed",
+      body: `Owner changed your completion date for "${item.title}" to ${dueDate}.`,
+      workItemId,
+    });
+  }
+
+  if (slug) revalidatePath(`/dashboard/${slug}/work-items`);
+  revalidatePath("/dashboard/my-tasks");
 }

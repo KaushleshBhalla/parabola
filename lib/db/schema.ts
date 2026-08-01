@@ -53,6 +53,11 @@ export const attachmentEntityTypeEnum = pgEnum("attachment_entity_type", [
   "comment",
 ]);
 
+export const notificationTypeEnum = pgEnum("notification_type", [
+  "work_item_assigned",
+  "due_date_changed",
+]);
+
 // ============ USERS & SESSIONS ============
 
 export const users = pgTable(
@@ -333,6 +338,52 @@ export const activityLog = pgTable(
     index("activity_log_created_at_idx").on(table.createdAt),
     index("activity_log_project_created_idx").on(
       table.projectId,
+      table.createdAt
+    ),
+  ]
+);
+
+// ============ PROJECT MEMBERS ============
+
+export const projectMembers = pgTable(
+  "project_members",
+  {
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    addedAt: timestamp("added_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.projectId, table.userId] })]
+);
+
+// ============ NOTIFICATIONS ============
+
+export const notifications = pgTable(
+  "notifications",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    type: notificationTypeEnum("type").notNull(),
+    body: text("body").notNull(),
+    workItemId: uuid("work_item_id").references(() => workItems.id, {
+      onDelete: "cascade",
+    }),
+    isRead: boolean("is_read").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("notifications_user_unread_idx").on(
+      table.userId,
+      table.isRead,
       table.createdAt
     ),
   ]

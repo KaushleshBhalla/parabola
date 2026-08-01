@@ -11,10 +11,11 @@ const OWNER_LOGIN = "owner";
 const OWNER_PASSWORD = "owner123";
 
 async function main() {
-  if (!process.env.DATABASE_URL) {
+  const url = process.env.DIRECT_URL || process.env.DATABASE_URL;
+  if (!url) {
     throw new Error("DATABASE_URL is not set");
   }
-  const client = postgres(process.env.DATABASE_URL, { prepare: false });
+  const client = postgres(url, { prepare: false });
   const db = drizzle(client, { schema });
 
   const [existing] = await db

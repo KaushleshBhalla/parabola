@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import { projects, workItems, users } from "@/lib/db/schema";
+import { requireUser, hasRole } from "@/lib/auth/rbac";
 import { WorkItemsBoard, type BoardItem } from "./board";
 import { NewWorkItemDialog } from "./new-work-item-dialog";
 
@@ -10,6 +11,7 @@ export default async function WorkItemsPage({
 }: {
   params: Promise<{ slug: string }>;
 }) {
+  const user = await requireUser();
   const { slug } = await params;
   const [project] = await db
     .select()
@@ -26,7 +28,9 @@ export default async function WorkItemsPage({
         title: workItems.title,
         priority: workItems.priority,
         status: workItems.status,
+        assigneeId: workItems.assigneeId,
         assigneeName: users.name,
+        dueDate: workItems.dueDate,
       })
       .from(workItems)
       .leftJoin(users, eq(workItems.assigneeId, users.id))
@@ -43,7 +47,9 @@ export default async function WorkItemsPage({
     title: r.title,
     priority: r.priority,
     status: r.status,
+    assigneeId: r.assigneeId,
     assigneeName: r.assigneeName,
+    dueDate: r.dueDate,
   }));
 
   return (
@@ -55,7 +61,12 @@ export default async function WorkItemsPage({
           assignees={activeUsers}
         />
       </div>
-      <WorkItemsBoard items={items} slug={slug} />
+      <WorkItemsBoard
+        items={items}
+        slug={slug}
+        currentUserId={user.id}
+        canEditAnyDueDate={hasRole(user.role, "admin")}
+      />
     </div>
   );
 }

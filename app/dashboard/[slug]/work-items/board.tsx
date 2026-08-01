@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { moveWorkItem } from "./actions";
+import { DueDateEditor } from "./due-date-editor";
 
 export type BoardItem = {
   id: string;
@@ -21,7 +22,9 @@ export type BoardItem = {
   title: string;
   priority: "none" | "low" | "medium" | "high" | "urgent";
   status: "backlog" | "todo" | "in_progress" | "in_review" | "done" | "cancelled";
+  assigneeId: string | null;
   assigneeName: string | null;
+  dueDate: string | null;
 };
 
 const COLUMNS: { status: BoardItem["status"]; label: string }[] = [
@@ -47,9 +50,13 @@ const PRIORITY_VARIANT: Record<
 export function WorkItemsBoard({
   items,
   slug,
+  currentUserId,
+  canEditAnyDueDate,
 }: {
   items: BoardItem[];
   slug: string;
+  currentUserId: string;
+  canEditAnyDueDate: boolean;
 }) {
   const [board, setBoard] = useState(items);
   const [prevItems, setPrevItems] = useState(items);
@@ -81,7 +88,7 @@ export function WorkItemsBoard({
   }
 
   return (
-    <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+    <DndContext id="work-items-board" sensors={sensors} onDragEnd={handleDragEnd}>
       <div className="flex h-full gap-4 overflow-x-auto px-6 py-4">
         {COLUMNS.map((col) => (
           <Column
@@ -89,6 +96,9 @@ export function WorkItemsBoard({
             status={col.status}
             label={col.label}
             items={board.filter((i) => i.status === col.status)}
+            slug={slug}
+            currentUserId={currentUserId}
+            canEditAnyDueDate={canEditAnyDueDate}
           />
         ))}
       </div>
@@ -100,10 +110,16 @@ function Column({
   status,
   label,
   items,
+  slug,
+  currentUserId,
+  canEditAnyDueDate,
 }: {
   status: BoardItem["status"];
   label: string;
   items: BoardItem[];
+  slug: string;
+  currentUserId: string;
+  canEditAnyDueDate: boolean;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: status });
   return (
@@ -120,14 +136,29 @@ function Column({
       </div>
       <div className="flex flex-col gap-2">
         {items.map((item) => (
-          <WorkItemCard key={item.id} item={item} />
+          <WorkItemCard
+            key={item.id}
+            item={item}
+            slug={slug}
+            canEditDueDate={
+              canEditAnyDueDate || item.assigneeId === currentUserId
+            }
+          />
         ))}
       </div>
     </div>
   );
 }
 
-function WorkItemCard({ item }: { item: BoardItem }) {
+function WorkItemCard({
+  item,
+  slug,
+  canEditDueDate,
+}: {
+  item: BoardItem;
+  slug: string;
+  canEditDueDate: boolean;
+}) {
   const { attributes, listeners, setNodeRef, transform, isDragging } =
     useDraggable({ id: item.id });
   const style = transform
@@ -156,13 +187,28 @@ function WorkItemCard({ item }: { item: BoardItem }) {
           <span />
         )}
         {item.assigneeName && (
-          <Avatar size="sm">
-            <AvatarFallback>
-              {item.assigneeName.slice(0, 2).toUpperCase()}
-            </AvatarFallback>
-          </Avatar>
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-muted-foreground">
+              {item.assigneeName}
+            </span>
+            <Avatar size="sm">
+              <AvatarFallback>
+                {item.assigneeName.slice(0, 2).toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+          </div>
         )}
       </div>
+      {item.assigneeName && (
+        <div onPointerDown={(e) => e.stopPropagation()}>
+          <DueDateEditor
+            workItemId={item.id}
+            dueDate={item.dueDate}
+            slug={slug}
+            canEdit={canEditDueDate}
+          />
+        </div>
+      )}
     </div>
   );
 }

@@ -6,10 +6,11 @@ import postgres from "postgres";
 config({ path: ".env.local" });
 
 async function main() {
-  if (!process.env.DATABASE_URL) {
+  const url = process.env.DIRECT_URL || process.env.DATABASE_URL;
+  if (!url) {
     throw new Error("DATABASE_URL is not set");
   }
-  const sql = postgres(process.env.DATABASE_URL, { prepare: false });
+  const sql = postgres(url, { prepare: false });
   const statements = readFileSync(path.join(__dirname, "rls.sql"), "utf-8");
   await sql.unsafe(statements);
   await sql.end();

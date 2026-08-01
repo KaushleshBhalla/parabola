@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import { projects } from "@/lib/db/schema";
+import { requireUser, canAccessProject, hasRole } from "@/lib/auth/rbac";
 import { ProjectNav } from "./project-nav";
 
 export default async function ProjectLayout({
@@ -12,6 +13,7 @@ export default async function ProjectLayout({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
+  const user = await requireUser();
   const [project] = await db
     .select()
     .from(projects)
@@ -19,6 +21,7 @@ export default async function ProjectLayout({
     .limit(1);
 
   if (!project) notFound();
+  if (!(await canAccessProject(user, project.id))) notFound();
 
   return (
     <div className="flex h-full flex-col">
@@ -28,7 +31,7 @@ export default async function ProjectLayout({
           <p className="text-sm text-muted-foreground">{project.description}</p>
         )}
       </div>
-      <ProjectNav slug={slug} />
+      <ProjectNav slug={slug} canManage={hasRole(user.role, "admin")} />
       <div className="flex-1 overflow-y-auto">{children}</div>
     </div>
   );

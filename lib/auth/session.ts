@@ -7,6 +7,7 @@ import { sessions, users } from "@/lib/db/schema";
 
 const COOKIE_NAME = "parabola_session";
 const SESSION_DURATION_MS = 30 * 24 * 60 * 60 * 1000;
+const LAST_SEEN_THROTTLE_MS = 5 * 60 * 1000;
 
 function hashToken(token: string) {
   return crypto.createHash("sha256").update(token).digest("hex");
@@ -46,6 +47,19 @@ export async function getCurrentUser() {
 
   if (!row || row.expiresAt < new Date() || !row.user.isActive) {
     return null;
+  }
+
+  const now = new Date();
+  const isStale =
+    !row.user.lastSeenAt ||
+    now.getTime() - row.user.lastSeenAt.getTime() > LAST_SEEN_THROTTLE_MS;
+
+  if (isStale) {
+    await db
+      .update(users)
+      .set({ lastSeenAt: now })
+      .where(eq(users.id, row.user.id));
+    row.user.lastSeenAt = now;
   }
 
   return row.user;

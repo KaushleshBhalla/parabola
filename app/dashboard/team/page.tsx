@@ -1,4 +1,5 @@
 import { desc } from "drizzle-orm";
+import { formatDistanceToNow } from "date-fns";
 import { db } from "@/lib/db/client";
 import { users } from "@/lib/db/schema";
 import { requireRole } from "@/lib/auth/rbac";
@@ -32,6 +33,7 @@ export default async function TeamPage() {
             <TableHead>Login ID</TableHead>
             <TableHead>Role</TableHead>
             <TableHead>Status</TableHead>
+            <TableHead>Last seen</TableHead>
             <TableHead />
           </TableRow>
         </TableHeader>
@@ -55,6 +57,11 @@ export default async function TeamPage() {
                 <Badge variant={u.isActive ? "default" : "outline"}>
                   {u.isActive ? "Active" : "Inactive"}
                 </Badge>
+              </TableCell>
+              <TableCell className="text-muted-foreground">
+                {u.lastSeenAt
+                  ? formatDistanceToNow(u.lastSeenAt, { addSuffix: true })
+                  : "Never"}
               </TableCell>
               <TableCell>
                 {u.role !== "owner" && u.id !== actor.id && (
