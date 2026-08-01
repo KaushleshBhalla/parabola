@@ -5,6 +5,7 @@ import { eq, sql } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import { workItems, projectCounters, notifications } from "@/lib/db/schema";
 import { requireUser, canAccessProject, hasRole } from "@/lib/auth/rbac";
+import { logActivity } from "@/lib/activity";
 
 const STATUSES = [
   "backlog",
@@ -66,6 +67,16 @@ export async function createWorkItem(formData: FormData) {
     });
   }
 
+  await logActivity({
+    actorId: user.id,
+    projectId,
+    action: "work_item.created",
+    entityType: "work_item",
+    entityId: workItem.id,
+    after: { title, priority, assigneeId },
+    searchText: `Created work item "#${workItem.number} ${title}"`,
+  });
+
   revalidatePath(`/dashboard/${slug}/work-items`);
   revalidatePath("/dashboard/my-tasks");
 }
@@ -79,16 +90,33 @@ export async function moveWorkItem(
   if (!(STATUSES as readonly string[]).includes(status)) return;
 
   const [item] = await db
-    .select({ projectId: workItems.projectId })
+    .select({
+      projectId: workItems.projectId,
+      title: workItems.title,
+      number: workItems.number,
+      status: workItems.status,
+    })
     .from(workItems)
     .where(eq(workItems.id, workItemId))
     .limit(1);
   if (!item || !(await canAccessProject(user, item.projectId))) return;
+  if (item.status === status) return;
 
   await db
     .update(workItems)
     .set({ status: status as Status, updatedAt: new Date() })
     .where(eq(workItems.id, workItemId));
+
+  await logActivity({
+    actorId: user.id,
+    projectId: item.projectId,
+    action: "work_item.status_changed",
+    entityType: "work_item",
+    entityId: workItemId,
+    before: { status: item.status },
+    after: { status },
+    searchText: `Moved "#${item.number} ${item.title}" to ${status}`,
+  });
 
   revalidatePath(`/dashboard/${slug}/work-items`);
 }
@@ -105,6 +133,8 @@ export async function commitDueDate(
       projectId: workItems.projectId,
       assigneeId: workItems.assigneeId,
       title: workItems.title,
+      number: workItems.number,
+      dueDate: workItems.dueDate,
     })
     .from(workItems)
     .where(eq(workItems.id, workItemId))
@@ -128,6 +158,17 @@ export async function commitDueDate(
       workItemId,
     });
   }
+
+  await logActivity({
+    actorId: user.id,
+    projectId: item.projectId,
+    action: "work_item.due_date_changed",
+    entityType: "work_item",
+    entityId: workItemId,
+    before: { dueDate: item.dueDate },
+    after: { dueDate },
+    searchText: `Set due date for "#${item.number} ${item.title}" to ${dueDate || "none"}`,
+  });
 
   if (slug) revalidatePath(`/dashboard/${slug}/work-items`);
   revalidatePath("/dashboard/my-tasks");

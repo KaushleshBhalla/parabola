@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db/client";
 import { roadmapItems } from "@/lib/db/schema";
 import { requireUser, canAccessProject } from "@/lib/auth/rbac";
+import { logActivity } from "@/lib/activity";
 
 const STATUSES = ["planned", "in_progress", "done"] as const;
 type Status = (typeof STATUSES)[number];
@@ -24,14 +25,27 @@ export async function createRoadmapItem(formData: FormData) {
   if (!title || !projectId) return;
   if (!(await canAccessProject(user, projectId))) return;
 
-  await db.insert(roadmapItems).values({
+  const [item] = await db
+    .insert(roadmapItems)
+    .values({
+      projectId,
+      title,
+      description: description || null,
+      milestone: milestone || null,
+      targetDate: targetDate || null,
+      status,
+      createdBy: user.id,
+    })
+    .returning();
+
+  await logActivity({
+    actorId: user.id,
     projectId,
-    title,
-    description: description || null,
-    milestone: milestone || null,
-    targetDate: targetDate || null,
-    status,
-    createdBy: user.id,
+    action: "roadmap_item.created",
+    entityType: "roadmap_item",
+    entityId: item.id,
+    after: { title, status, targetDate: targetDate || null },
+    searchText: `Created roadmap item "${title}"`,
   });
 
   revalidatePath(`/dashboard/${slug}/roadmap`);

@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import { projects, projectCounters } from "@/lib/db/schema";
 import { requireRole } from "@/lib/auth/rbac";
+import { logActivity } from "@/lib/activity";
 
 function slugify(name: string) {
   return name
@@ -44,6 +45,16 @@ export async function createProject(formData: FormData) {
     .returning();
 
   await db.insert(projectCounters).values({ projectId: project.id });
+
+  await logActivity({
+    actorId: user.id,
+    projectId: project.id,
+    action: "project.created",
+    entityType: "project",
+    entityId: project.id,
+    after: { name, slug },
+    searchText: `Created project "${name}"`,
+  });
 
   revalidatePath("/dashboard");
 }

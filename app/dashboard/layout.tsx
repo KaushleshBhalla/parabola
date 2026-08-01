@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { desc, eq } from "drizzle-orm";
-import { LayoutGrid, LogOut, ListTodo, Users } from "lucide-react";
+import { LayoutGrid, LogOut, ListTodo, Users, ScrollText } from "lucide-react";
 import { requireUser, hasRole } from "@/lib/auth/rbac";
 import { logout } from "@/lib/auth/actions";
 import { db } from "@/lib/db/client";
@@ -16,6 +16,7 @@ export default async function DashboardLayout({
 }) {
   const user = await requireUser();
   const canManageTeam = hasRole(user.role, "admin");
+  const isOwner = hasRole(user.role, "owner");
 
   const notificationRows = await db
     .select({
@@ -72,6 +73,15 @@ export default async function DashboardLayout({
             >
               <Users className="size-4" />
               Team
+            </Link>
+          )}
+          {isOwner && (
+            <Link
+              href="/dashboard/log"
+              className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 hover:bg-muted"
+            >
+              <ScrollText className="size-4" />
+              Activity log
             </Link>
           )}
         </nav>
