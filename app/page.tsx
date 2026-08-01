@@ -58,12 +58,9 @@ export default function Home() {
             your team always knows what&apos;s next.
           </p>
           <div className="flex flex-col gap-3 sm:flex-row">
-            <Button size="lg" render={<Link href="/signup" />}>
-              Get started
-              <ArrowRight />
-            </Button>
-            <Button variant="outline" size="lg" render={<Link href="/login" />}>
+            <Button size="lg" render={<Link href="/login" />}>
               Sign in
+              <ArrowRight />
             </Button>
           </div>
         </section>
