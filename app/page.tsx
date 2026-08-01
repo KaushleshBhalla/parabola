@@ -43,7 +43,12 @@ export default function Home() {
         <span className="font-heading text-lg font-semibold tracking-tight">
           Parabola
         </span>
-        <Button variant="ghost" size="sm" render={<Link href="/login" />}>
+        <Button
+          variant="ghost"
+          size="sm"
+          nativeButton={false}
+          render={<Link href="/login" />}
+        >
           Sign in
         </Button>
       </header>
@@ -58,7 +63,7 @@ export default function Home() {
             your team always knows what&apos;s next.
           </p>
           <div className="flex flex-col gap-3 sm:flex-row">
-            <Button size="lg" render={<Link href="/login" />}>
+            <Button size="lg" nativeButton={false} render={<Link href="/login" />}>
               Sign in
               <ArrowRight />
             </Button>
