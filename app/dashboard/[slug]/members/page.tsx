@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { eq } from "drizzle-orm";
+import { eq, isNull } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import { projects, users, projectMembers } from "@/lib/db/schema";
 import { requireRole, hasRole } from "@/lib/auth/rbac";
@@ -29,7 +29,7 @@ export default async function ProjectMembersPage({
   if (!project) notFound();
 
   const [allUsers, members] = await Promise.all([
-    db.select().from(users).orderBy(users.name),
+    db.select().from(users).where(isNull(users.deletedAt)).orderBy(users.name),
     db
       .select({ userId: projectMembers.userId })
       .from(projectMembers)

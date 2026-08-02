@@ -1,6 +1,7 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
+import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -9,7 +10,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { updateUserRole, setUserActive } from "./actions";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { updateUserRole, setUserActive, deleteUser } from "./actions";
 
 export function RoleSelect({
   userId,
@@ -17,7 +27,7 @@ export function RoleSelect({
   canGrantAdmin,
 }: {
   userId: string;
-  role: "admin" | "member" | "viewer";
+  role: "admin" | "member";
   canGrantAdmin: boolean;
 }) {
   const [pending, startTransition] = useTransition();
@@ -38,7 +48,6 @@ export function RoleSelect({
       <SelectContent>
         {canGrantAdmin && <SelectItem value="admin">Admin</SelectItem>}
         <SelectItem value="member">Member</SelectItem>
-        <SelectItem value="viewer">Viewer</SelectItem>
       </SelectContent>
     </Select>
   );
@@ -66,5 +75,59 @@ export function ActiveToggle({
     >
       {isActive ? "Deactivate" : "Activate"}
     </Button>
+  );
+}
+
+export function DeleteUserButton({
+  userId,
+  name,
+}: {
+  userId: string;
+  name: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [purge, setPurge] = useState(false);
+  const [pending, startTransition] = useTransition();
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger render={<Button variant="destructive" size="icon-sm" />}>
+        <Trash2 className="size-4" />
+        <span className="sr-only">Delete {name}</span>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Delete {name}?</DialogTitle>
+          <DialogDescription>
+            They&apos;ll be signed out and can no longer log in. Anything
+            they created will still show their name, marked as deleted —
+            unless you choose to remove it below.
+          </DialogDescription>
+        </DialogHeader>
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={purge}
+            onChange={(e) => setPurge(e.target.checked)}
+          />
+          Also delete everything they created (work items, comments, chat
+          messages, roadmap items) — cannot be undone.
+        </label>
+        <DialogFooter showCloseButton>
+          <Button
+            variant="destructive"
+            disabled={pending}
+            onClick={() =>
+              startTransition(async () => {
+                await deleteUser(userId, purge);
+                setOpen(false);
+              })
+            }
+          >
+            Delete
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

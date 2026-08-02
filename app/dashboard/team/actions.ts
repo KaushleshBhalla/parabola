@@ -1,14 +1,23 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { eq } from "drizzle-orm";
+import { and, eq, inArray, notInArray } from "drizzle-orm";
 import { db } from "@/lib/db/client";
-import { users } from "@/lib/db/schema";
+import {
+  users,
+  sessions,
+  projects,
+  projectMembers,
+  workItems,
+  workItemComments,
+  chatMessages,
+  roadmapItems,
+} from "@/lib/db/schema";
 import { requireRole } from "@/lib/auth/rbac";
 import { hashPassword, encryptReversible } from "@/lib/auth/password";
 import { logActivity } from "@/lib/activity";
 
-const ASSIGNABLE_ROLES = ["admin", "member", "viewer"] as const;
+const ASSIGNABLE_ROLES = ["admin", "member"] as const;
 type AssignableRole = (typeof ASSIGNABLE_ROLES)[number];
 
 function isAssignableRole(value: string): value is AssignableRole {
@@ -103,4 +112,100 @@ export async function setUserActive(userId: string, isActive: boolean) {
   });
 
   revalidatePath("/dashboard/team");
+}
+
+export async function deleteUser(userId: string, purgeContent: boolean) {
+  const actor = await requireRole("admin");
+  if (userId === actor.id) return;
+
+  const [target] = await db
+    .select({ name: users.name, role: users.role })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  if (!target || target.role === "owner") return;
+
+  if (purgeContent) {
+    await db.delete(workItems).where(eq(workItems.createdBy, userId));
+    await db
+      .delete(workItemComments)
+      .where(eq(workItemComments.authorId, userId));
+    await db.delete(chatMessages).where(eq(chatMessages.authorId, userId));
+    await db.delete(roadmapItems).where(eq(roadmapItems.createdBy, userId));
+  }
+
+  await db.delete(sessions).where(eq(sessions.userId, userId));
+  await db.delete(projectMembers).where(eq(projectMembers.userId, userId));
+  await db
+    .update(users)
+    .set({ deletedAt: new Date(), isActive: false })
+    .where(eq(users.id, userId));
+
+  await logActivity({
+    actorId: actor.id,
+    action: "user.deleted",
+    entityType: "user",
+    entityId: userId,
+    searchText: purgeContent
+      ? `Deleted ${target.name} and everything they created`
+      : `Deleted ${target.name} (their content was kept)`,
+  });
+
+  revalidatePath("/dashboard/team");
+}
+
+export async function setUserProjectAccess(
+  userId: string,
+  projectIds: string[]
+) {
+  const actor = await requireRole("admin");
+
+  const [target] = await db
+    .select({ name: users.name })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  if (!target) return;
+
+  await db.transaction(async (tx) => {
+    if (projectIds.length > 0) {
+      await tx
+        .delete(projectMembers)
+        .where(
+          and(
+            eq(projectMembers.userId, userId),
+            notInArray(projectMembers.projectId, projectIds)
+          )
+        );
+      await tx
+        .insert(projectMembers)
+        .values(projectIds.map((projectId) => ({ projectId, userId })))
+        .onConflictDoNothing();
+    } else {
+      await tx.delete(projectMembers).where(eq(projectMembers.userId, userId));
+    }
+  });
+
+  const grantedNames = projectIds.length
+    ? (
+        await db
+          .select({ name: projects.name })
+          .from(projects)
+          .where(inArray(projects.id, projectIds))
+      )
+        .map((p) => p.name)
+        .join(", ")
+    : "no projects";
+
+  await logActivity({
+    actorId: actor.id,
+    action: "user.project_access_updated",
+    entityType: "user",
+    entityId: userId,
+    after: { projectIds },
+    searchText: `Set ${target.name}'s project access to: ${grantedNames}`,
+  });
+
+  revalidatePath("/dashboard/team");
+  revalidatePath("/dashboard");
 }

@@ -1,16 +1,10 @@
 import { notFound } from "next/navigation";
 import { eq } from "drizzle-orm";
-import { format } from "date-fns";
+import { Rocket } from "lucide-react";
 import { db } from "@/lib/db/client";
 import { projects, roadmapItems } from "@/lib/db/schema";
-import { Badge } from "@/components/ui/badge";
 import { NewRoadmapItemDialog } from "./new-roadmap-item-dialog";
-
-const COLUMNS = [
-  { status: "planned" as const, label: "Planned" },
-  { status: "in_progress" as const, label: "In Progress" },
-  { status: "done" as const, label: "Done" },
-];
+import { RoadmapItemCard } from "./roadmap-item-card";
 
 export default async function RoadmapPage({
   params,
@@ -30,49 +24,118 @@ export default async function RoadmapPage({
     .from(roadmapItems)
     .where(eq(roadmapItems.projectId, project.id));
 
+  const groups = new Map<string, typeof items>();
+  for (const item of items) {
+    const key = item.milestone ?? "Unscheduled";
+    const list = groups.get(key) ?? [];
+    list.push(item);
+    groups.set(key, list);
+  }
+
+  const milestones = [...groups.entries()]
+    .map(([milestone, milestoneItems]) => {
+      const dated = milestoneItems
+        .filter((i) => i.targetDate)
+        .sort((a, b) => a.targetDate!.localeCompare(b.targetDate!));
+      const done = milestoneItems.filter((i) => i.status === "done").length;
+      return {
+        milestone,
+        items: [...milestoneItems].sort((a, b) => {
+          if (!a.targetDate && b.targetDate) return 1;
+          if (a.targetDate && !b.targetDate) return -1;
+          if (a.targetDate && b.targetDate) {
+            return a.targetDate.localeCompare(b.targetDate);
+          }
+          return 0;
+        }),
+        done,
+        total: milestoneItems.length,
+        earliestDate: dated[0]?.targetDate ?? null,
+      };
+    })
+    .sort((a, b) => {
+      if (a.milestone === "Unscheduled") return 1;
+      if (b.milestone === "Unscheduled") return -1;
+      if (!a.earliestDate && b.earliestDate) return 1;
+      if (a.earliestDate && !b.earliestDate) return -1;
+      if (a.earliestDate && b.earliestDate) {
+        return a.earliestDate.localeCompare(b.earliestDate);
+      }
+      return 0;
+    });
+
+  const totalDone = items.filter((i) => i.status === "done").length;
+
   return (
-    <div className="flex h-full flex-col">
-      <div className="flex items-center justify-end px-6 pt-4">
+    <div className="mx-auto flex w-full max-w-4xl flex-col gap-8 px-6 py-6">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Rocket className="size-4 text-muted-foreground" />
+          <span className="text-sm text-muted-foreground">
+            {items.length === 0
+              ? "No roadmap items yet"
+              : `${totalDone} of ${items.length} shipped`}
+          </span>
+        </div>
         <NewRoadmapItemDialog projectId={project.id} slug={slug} />
       </div>
-      <div className="flex h-full gap-4 overflow-x-auto px-6 py-4">
-        {COLUMNS.map((col) => (
-          <div key={col.status} className="flex w-72 shrink-0 flex-col gap-2">
-            <div className="flex items-center justify-between px-1 text-xs font-medium text-muted-foreground">
-              <span>{col.label}</span>
-              <span>
-                {items.filter((i) => i.status === col.status).length}
-              </span>
-            </div>
-            <div className="flex flex-col gap-2">
-              {items
-                .filter((i) => i.status === col.status)
-                .map((item) => (
-                  <div
+
+      {milestones.length === 0 && (
+        <p className="text-sm text-muted-foreground">
+          Nothing planned yet. Add your first roadmap item to get started.
+        </p>
+      )}
+
+      <div className="flex flex-col gap-6">
+        {milestones.map((group) => {
+          const pct =
+            group.total === 0 ? 0 : Math.round((group.done / group.total) * 100);
+          return (
+            <div
+              key={group.milestone}
+              className="rounded-xl bg-card p-4 ring-1 ring-foreground/10"
+            >
+              <div className="mb-3 flex items-center justify-between gap-4">
+                <div className="flex items-baseline gap-2">
+                  <h2 className="font-heading text-sm font-semibold">
+                    {group.milestone}
+                  </h2>
+                  {group.earliestDate && (
+                    <span className="font-mono text-xs text-muted-foreground">
+                      target {group.earliestDate}
+                    </span>
+                  )}
+                </div>
+                <span className="shrink-0 text-xs text-muted-foreground">
+                  {group.done}/{group.total}
+                </span>
+              </div>
+
+              <div className="mb-4 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                <div
+                  className="h-full rounded-full bg-foreground transition-all"
+                  style={{ width: `${pct}%` }}
+                />
+              </div>
+
+              <div className="flex flex-col divide-y divide-border">
+                {group.items.map((item) => (
+                  <RoadmapItemCard
                     key={item.id}
-                    className="flex flex-col gap-2 rounded-lg bg-card p-3 text-sm ring-1 ring-foreground/10"
-                  >
-                    <p className="font-medium">{item.title}</p>
-                    {item.description && (
-                      <p className="text-muted-foreground">
-                        {item.description}
-                      </p>
-                    )}
-                    <div className="flex items-center gap-2">
-                      {item.milestone && (
-                        <Badge variant="outline">{item.milestone}</Badge>
-                      )}
-                      {item.targetDate && (
-                        <span className="text-xs text-muted-foreground">
-                          {format(new Date(item.targetDate), "MMM d, yyyy")}
-                        </span>
-                      )}
-                    </div>
-                  </div>
+                    slug={slug}
+                    item={{
+                      id: item.id,
+                      title: item.title,
+                      description: item.description,
+                      targetDate: item.targetDate,
+                      status: item.status,
+                    }}
+                  />
                 ))}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

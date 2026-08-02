@@ -30,6 +30,7 @@ export default async function WorkItemsPage({
         status: workItems.status,
         assigneeId: workItems.assigneeId,
         assigneeName: users.name,
+        assigneeDeletedAt: users.deletedAt,
         dueDate: workItems.dueDate,
       })
       .from(workItems)
@@ -48,7 +49,9 @@ export default async function WorkItemsPage({
     priority: r.priority,
     status: r.status,
     assigneeId: r.assigneeId,
-    assigneeName: r.assigneeName,
+    assigneeName: r.assigneeName
+      ? r.assigneeName + (r.assigneeDeletedAt ? " (deleted)" : "")
+      : r.assigneeName,
     dueDate: r.dueDate,
   }));
 

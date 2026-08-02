@@ -72,6 +72,7 @@ export const users = pgTable(
     avatarUrl: text("avatar_url"),
     isActive: boolean("is_active").notNull().default(true),
     lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
     createdBy: uuid("created_by"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()

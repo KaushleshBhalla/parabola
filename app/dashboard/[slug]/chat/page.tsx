@@ -27,6 +27,7 @@ export default async function ChatPage({
       body: chatMessages.body,
       createdAt: chatMessages.createdAt,
       authorName: users.name,
+      authorDeletedAt: users.deletedAt,
     })
     .from(chatMessages)
     .innerJoin(users, eq(chatMessages.authorId, users.id))
@@ -51,7 +52,12 @@ export default async function ChatPage({
                 </Avatar>
                 <div className="flex flex-col gap-0.5">
                   <div className="flex items-baseline gap-2">
-                    <span className="text-sm font-medium">{m.authorName}</span>
+                    <span className="text-sm font-medium">
+                      {m.authorName}
+                      {m.authorDeletedAt && (
+                        <span className="text-muted-foreground"> (deleted)</span>
+                      )}
+                    </span>
                     <span className="text-xs text-muted-foreground">
                       {formatDistanceToNow(m.createdAt, { addSuffix: true })}
                     </span>
