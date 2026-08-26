@@ -8,8 +8,8 @@ import {
   Users,
   ScrollText,
 } from "lucide-react";
+import { SignOutButton } from "@clerk/nextjs";
 import { requireUser, hasRole } from "@/lib/auth/rbac";
-import { logout } from "@/lib/auth/actions";
 import { db } from "@/lib/db/client";
 import { notifications, workItems, projects } from "@/lib/db/schema";
 import { Button } from "@/components/ui/button";
@@ -115,11 +115,11 @@ export default async function DashboardLayout({
             notifications={notificationItems}
             unreadCount={unreadCount}
           />
-          <form action={logout}>
-            <Button variant="ghost" size="icon-sm" type="submit" title="Sign out">
+          <SignOutButton redirectUrl="/login">
+            <Button variant="ghost" size="icon-sm" title="Sign out">
               <LogOut className="size-4" />
             </Button>
-          </form>
+          </SignOutButton>
         </div>
       </aside>
       <main className="flex-1 overflow-y-auto">{children}</main>

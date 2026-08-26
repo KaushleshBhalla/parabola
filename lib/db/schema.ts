@@ -64,10 +64,9 @@ export const users = pgTable(
   "users",
   {
     id: uuid("id").primaryKey().defaultRandom(),
+    clerkUserId: text("clerk_user_id"),
     name: text("name").notNull(),
     email: text("email").notNull(),
-    passwordHash: text("password_hash").notNull(),
-    passwordEncrypted: text("password_encrypted").notNull(),
     role: userRoleEnum("role").notNull().default("member"),
     avatarUrl: text("avatar_url"),
     isActive: boolean("is_active").notNull().default(true),
@@ -83,33 +82,10 @@ export const users = pgTable(
   },
   (table) => [
     uniqueIndex("users_email_idx").on(table.email),
+    uniqueIndex("users_clerk_user_id_idx").on(table.clerkUserId),
     uniqueIndex("users_single_owner_idx")
       .on(table.role)
       .where(sql`${table.role} = 'owner'`),
-  ]
-);
-
-export const sessions = pgTable(
-  "sessions",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    userId: uuid("user_id")
-      .notNull()
-      .references(() => users.id, { onDelete: "cascade" }),
-    tokenHash: text("token_hash").notNull(),
-    userAgent: text("user_agent"),
-    ip: text("ip"),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-    lastUsedAt: timestamp("last_used_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
-  },
-  (table) => [
-    uniqueIndex("sessions_token_hash_idx").on(table.tokenHash),
-    index("sessions_user_id_idx").on(table.userId),
   ]
 );
 

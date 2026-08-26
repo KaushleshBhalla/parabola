@@ -2,10 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { and, eq, inArray, notInArray } from "drizzle-orm";
+import { clerkClient } from "@clerk/nextjs/server";
 import { db } from "@/lib/db/client";
 import {
   users,
-  sessions,
   projects,
   projectMembers,
   workItems,
@@ -14,7 +14,6 @@ import {
   roadmapItems,
 } from "@/lib/db/schema";
 import { requireRole } from "@/lib/auth/rbac";
-import { hashPassword, encryptReversible } from "@/lib/auth/password";
 import { logActivity } from "@/lib/activity";
 
 const ASSIGNABLE_ROLES = ["admin", "member"] as const;
@@ -28,11 +27,10 @@ export async function createUser(formData: FormData) {
   const actor = await requireRole("admin");
   const name = String(formData.get("name") ?? "").trim();
   const login = String(formData.get("login") ?? "").trim();
-  const password = String(formData.get("password") ?? "");
   const roleInput = String(formData.get("role") ?? "member");
   const role: AssignableRole = isAssignableRole(roleInput) ? roleInput : "member";
 
-  if (!name || !login || !password) return;
+  if (!name || !login) return;
 
   const [existing] = await db
     .select({ id: users.id })
@@ -46,11 +44,12 @@ export async function createUser(formData: FormData) {
     .values({
       name,
       email: login,
-      passwordHash: await hashPassword(password),
-      passwordEncrypted: encryptReversible(password),
       role,
     })
     .returning();
+
+  const client = await clerkClient();
+  await client.invitations.createInvitation({ emailAddress: login });
 
   await logActivity({
     actorId: actor.id,
@@ -134,7 +133,6 @@ export async function deleteUser(userId: string, purgeContent: boolean) {
     await db.delete(roadmapItems).where(eq(roadmapItems.createdBy, userId));
   }
 
-  await db.delete(sessions).where(eq(sessions.userId, userId));
   await db.delete(projectMembers).where(eq(projectMembers.userId, userId));
   await db
     .update(users)

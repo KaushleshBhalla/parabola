@@ -1,9 +1,9 @@
 import "server-only";
 import { redirect } from "next/navigation";
 import { and, eq } from "drizzle-orm";
-import { getCurrentUser } from "./session";
+import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db/client";
-import { projectMembers } from "@/lib/db/schema";
+import { users, projectMembers } from "@/lib/db/schema";
 
 const ROLE_RANK = { viewer: 0, member: 1, admin: 2, owner: 3 } as const;
 export type Role = keyof typeof ROLE_RANK;
@@ -13,8 +13,16 @@ export function hasRole(userRole: Role, minRole: Role) {
 }
 
 export async function requireUser() {
-  const user = await getCurrentUser();
-  if (!user) redirect("/login");
+  const { userId: clerkUserId } = await auth();
+  if (!clerkUserId) redirect("/login");
+
+  const [user] = await db
+    .select()
+    .from(users)
+    .where(eq(users.clerkUserId, clerkUserId))
+    .limit(1);
+
+  if (!user || !user.isActive) redirect("/login");
   return user;
 }
 
