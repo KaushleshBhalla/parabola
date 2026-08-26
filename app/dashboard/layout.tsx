@@ -1,6 +1,13 @@
 import Link from "next/link";
 import { desc, eq } from "drizzle-orm";
-import { LayoutGrid, LogOut, ListTodo, Users, ScrollText } from "lucide-react";
+import {
+  LayoutGrid,
+  LogOut,
+  ListTodo,
+  ListChecks,
+  Users,
+  ScrollText,
+} from "lucide-react";
 import { requireUser, hasRole } from "@/lib/auth/rbac";
 import { logout } from "@/lib/auth/actions";
 import { db } from "@/lib/db/client";
@@ -65,6 +72,13 @@ export default async function DashboardLayout({
           >
             <ListTodo className="size-4" />
             My tasks
+          </Link>
+          <Link
+            href="/dashboard/team-tasks"
+            className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 hover:bg-muted"
+          >
+            <ListChecks className="size-4" />
+            Team tasks
           </Link>
           {canManageTeam && (
             <Link

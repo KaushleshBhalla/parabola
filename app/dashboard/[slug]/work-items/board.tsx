@@ -13,8 +13,10 @@ import {
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { DeadlineBadge } from "@/components/deadline-badge";
 import { moveWorkItem } from "./actions";
 import { DueDateEditor } from "./due-date-editor";
+import { AssignWorkItemDialog } from "./assign-work-item-dialog";
 
 export type BoardItem = {
   id: string;
@@ -25,7 +27,10 @@ export type BoardItem = {
   assigneeId: string | null;
   assigneeName: string | null;
   dueDate: string | null;
+  position: number;
 };
+
+const POSITION_GAP = 1000;
 
 const COLUMNS: { status: BoardItem["status"]; label: string }[] = [
   { status: "backlog", label: "Backlog" },
@@ -52,11 +57,13 @@ export function WorkItemsBoard({
   slug,
   currentUserId,
   canEditAnyDueDate,
+  assignees,
 }: {
   items: BoardItem[];
   slug: string;
   currentUserId: string;
   canEditAnyDueDate: boolean;
+  assignees: { id: string; name: string }[];
 }) {
   const [board, setBoard] = useState(items);
   const [prevItems, setPrevItems] = useState(items);
@@ -79,11 +86,22 @@ export function WorkItemsBoard({
     const current = board.find((i) => i.id === itemId);
     if (!current || current.status === newStatus) return;
 
+    const targetColumnItems = board.filter(
+      (i) => i.status === newStatus && i.id !== itemId
+    );
+    const maxPosition = targetColumnItems.reduce(
+      (max, i) => Math.max(max, i.position),
+      0
+    );
+    const position = maxPosition + POSITION_GAP;
+
     setBoard((prev) =>
-      prev.map((i) => (i.id === itemId ? { ...i, status: newStatus } : i))
+      prev.map((i) =>
+        i.id === itemId ? { ...i, status: newStatus, position } : i
+      )
     );
     startTransition(async () => {
-      await moveWorkItem(itemId, newStatus, slug);
+      await moveWorkItem(itemId, newStatus, position, slug);
     });
   }
 
@@ -99,6 +117,7 @@ export function WorkItemsBoard({
             slug={slug}
             currentUserId={currentUserId}
             canEditAnyDueDate={canEditAnyDueDate}
+            assignees={assignees}
           />
         ))}
       </div>
@@ -113,6 +132,7 @@ function Column({
   slug,
   currentUserId,
   canEditAnyDueDate,
+  assignees,
 }: {
   status: BoardItem["status"];
   label: string;
@@ -120,6 +140,7 @@ function Column({
   slug: string;
   currentUserId: string;
   canEditAnyDueDate: boolean;
+  assignees: { id: string; name: string }[];
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: status });
   return (
@@ -143,6 +164,7 @@ function Column({
             canEditDueDate={
               canEditAnyDueDate || item.assigneeId === currentUserId
             }
+            assignees={assignees}
           />
         ))}
       </div>
@@ -154,10 +176,12 @@ function WorkItemCard({
   item,
   slug,
   canEditDueDate,
+  assignees,
 }: {
   item: BoardItem;
   slug: string;
   canEditDueDate: boolean;
+  assignees: { id: string; name: string }[];
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } =
     useDraggable({ id: item.id });
@@ -186,27 +210,42 @@ function WorkItemCard({
         ) : (
           <span />
         )}
-        {item.assigneeName && (
-          <div className="flex items-center gap-1.5">
-            <span className="text-xs text-muted-foreground">
-              {item.assigneeName}
-            </span>
-            <Avatar size="sm">
-              <AvatarFallback>
-                {item.assigneeName.slice(0, 2).toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
-          </div>
-        )}
+        <div onPointerDown={(e) => e.stopPropagation()}>
+          <AssignWorkItemDialog
+            workItemId={item.id}
+            slug={slug}
+            currentAssigneeId={item.assigneeId}
+            currentAssigneeName={item.assigneeName}
+            currentDueDate={item.dueDate}
+            assignees={assignees}
+          >
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-muted-foreground">
+                {item.assigneeName ?? "Unassigned"}
+              </span>
+              <Avatar size="sm">
+                <AvatarFallback>
+                  {item.assigneeName
+                    ? item.assigneeName.slice(0, 2).toUpperCase()
+                    : "?"}
+                </AvatarFallback>
+              </Avatar>
+            </div>
+          </AssignWorkItemDialog>
+        </div>
       </div>
       {item.assigneeName && (
-        <div onPointerDown={(e) => e.stopPropagation()}>
+        <div
+          className="flex items-center justify-between gap-2"
+          onPointerDown={(e) => e.stopPropagation()}
+        >
           <DueDateEditor
             workItemId={item.id}
             dueDate={item.dueDate}
             slug={slug}
             canEdit={canEditDueDate}
           />
+          <DeadlineBadge dueDate={item.dueDate} status={item.status} />
         </div>
       )}
     </div>

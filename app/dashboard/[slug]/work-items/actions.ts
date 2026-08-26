@@ -28,7 +28,9 @@ type Priority = (typeof PRIORITIES)[number];
 
 const POSITION_GAP = 1000;
 
-export async function createWorkItem(formData: FormData) {
+export async function createWorkItem(
+  formData: FormData
+): Promise<{ error: string } | undefined> {
   const user = await requireUser();
   const projectId = String(formData.get("projectId") ?? "");
   const slug = String(formData.get("slug") ?? "");
@@ -36,14 +38,18 @@ export async function createWorkItem(formData: FormData) {
   const description = String(formData.get("description") ?? "").trim();
   const priorityInput = String(formData.get("priority") ?? "none");
   const assigneeIdInput = String(formData.get("assigneeId") ?? "");
+  const dueDateInput = String(formData.get("dueDate") ?? "").trim();
   const priority: Priority = (PRIORITIES as readonly string[]).includes(
     priorityInput
   )
     ? (priorityInput as Priority)
     : "none";
 
-  if (!title || !projectId) return;
-  if (!(await canAccessProject(user, projectId))) return;
+  if (!title || !projectId) return { error: "Title is required." };
+  if (!(await canAccessProject(user, projectId)))
+    return { error: "You don't have access to this project." };
+  if (assigneeIdInput && !dueDateInput)
+    return { error: "A deadline is required when assigning a task." };
 
   const [counter, [top]] = await Promise.all([
     db
@@ -62,6 +68,7 @@ export async function createWorkItem(formData: FormData) {
   ]);
 
   const assigneeId = assigneeIdInput || null;
+  const dueDate = dueDateInput || null;
   const position = (top?.position ?? 0) + POSITION_GAP;
 
   const [workItem] = await db
@@ -73,6 +80,7 @@ export async function createWorkItem(formData: FormData) {
       description: description || null,
       priority,
       assigneeId,
+      dueDate,
       position,
       createdBy: user.id,
     })
@@ -99,6 +107,7 @@ export async function createWorkItem(formData: FormData) {
 
   revalidatePath(`/dashboard/${slug}/work-items`);
   revalidatePath("/dashboard/my-tasks");
+  revalidatePath("/dashboard/team-tasks");
 }
 
 /**
@@ -106,7 +115,7 @@ export async function createWorkItem(formData: FormData) {
  * as the midpoint of its new neighbors, or ±POSITION_GAP at a column edge).
  * Handles both cross-column moves and same-column reordering.
  */
-export async function reorderWorkItem(
+export async function moveWorkItem(
   workItemId: string,
   status: string,
   position: number,
@@ -171,6 +180,7 @@ export async function commitDueDate(
   const isOwnerEdit = hasRole(user.role, "admin") && user.id !== item.assigneeId;
   const isSelfCommit = user.id === item.assigneeId;
   if (!isOwnerEdit && !isSelfCommit) return;
+  if (!dueDate && item.assigneeId) return; // assigned tasks always need a deadline
 
   await db
     .update(workItems)
@@ -199,6 +209,66 @@ export async function commitDueDate(
 
   if (slug) revalidatePath(`/dashboard/${slug}/work-items`);
   revalidatePath("/dashboard/my-tasks");
+  revalidatePath("/dashboard/team-tasks");
+}
+
+/**
+ * Assigns (or reassigns) a work item to any active user. Anyone with access
+ * to the project can call this — assignment isn't role-gated. A deadline is
+ * mandatory whenever an assignee is set, since an assigned task with no due
+ * date can't show up correctly in deadline-tracking views.
+ */
+export async function assignWorkItem(
+  workItemId: string,
+  slug: string,
+  assigneeId: string | null,
+  dueDate: string | null
+): Promise<{ error: string } | undefined> {
+  const user = await requireUser();
+
+  const [item] = await db
+    .select({
+      projectId: workItems.projectId,
+      title: workItems.title,
+      assigneeId: workItems.assigneeId,
+    })
+    .from(workItems)
+    .where(eq(workItems.id, workItemId))
+    .limit(1);
+  if (!item) return { error: "Work item not found." };
+  if (!(await canAccessProject(user, item.projectId)))
+    return { error: "You don't have access to this project." };
+  if (assigneeId && !dueDate)
+    return { error: "A deadline is required when assigning a task." };
+
+  await db
+    .update(workItems)
+    .set({ assigneeId, dueDate, updatedAt: new Date() })
+    .where(eq(workItems.id, workItemId));
+
+  if (assigneeId && assigneeId !== item.assigneeId && assigneeId !== user.id) {
+    await db.insert(notifications).values({
+      userId: assigneeId,
+      type: "work_item_assigned",
+      body: `You were assigned "${item.title}".`,
+      workItemId,
+    });
+  }
+
+  await logActivity({
+    actorId: user.id,
+    projectId: item.projectId,
+    action: "work_item.assigned",
+    entityType: "work_item",
+    entityId: workItemId,
+    before: { assigneeId: item.assigneeId },
+    after: { assigneeId, dueDate },
+    searchText: `Assigned "${item.title}"`,
+  });
+
+  revalidatePath(`/dashboard/${slug}/work-items`);
+  revalidatePath("/dashboard/my-tasks");
+  revalidatePath("/dashboard/team-tasks");
 }
 
 export async function updateWorkItem(
@@ -271,6 +341,7 @@ export async function updateWorkItem(
 
   revalidatePath(`/dashboard/${slug}/work-items`);
   revalidatePath("/dashboard/my-tasks");
+  revalidatePath("/dashboard/team-tasks");
 }
 
 export async function getWorkItemDetail(workItemId: string) {

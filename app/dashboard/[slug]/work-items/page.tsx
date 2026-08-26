@@ -32,6 +32,7 @@ export default async function WorkItemsPage({
         assigneeName: users.name,
         assigneeDeletedAt: users.deletedAt,
         dueDate: workItems.dueDate,
+        position: workItems.position,
       })
       .from(workItems)
       .leftJoin(users, eq(workItems.assigneeId, users.id))
@@ -53,6 +54,7 @@ export default async function WorkItemsPage({
       ? r.assigneeName + (r.assigneeDeletedAt ? " (deleted)" : "")
       : r.assigneeName,
     dueDate: r.dueDate,
+    position: r.position,
   }));
 
   return (
@@ -69,6 +71,7 @@ export default async function WorkItemsPage({
         slug={slug}
         currentUserId={user.id}
         canEditAnyDueDate={hasRole(user.role, "admin")}
+        assignees={activeUsers}
       />
     </div>
   );

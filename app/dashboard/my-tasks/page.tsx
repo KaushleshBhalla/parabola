@@ -1,32 +1,42 @@
 import Link from "next/link";
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db/client";
-import { workItems, projects } from "@/lib/db/schema";
+import { workItems, projects, users } from "@/lib/db/schema";
 import { requireUser } from "@/lib/auth/rbac";
 import { Badge } from "@/components/ui/badge";
 import { DueDateEditor } from "@/app/dashboard/[slug]/work-items/due-date-editor";
+import { AssignWorkItemDialog } from "@/app/dashboard/[slug]/work-items/assign-work-item-dialog";
+import { DeadlineBadge } from "@/components/deadline-badge";
+import { getDeadlineStatus, deadlineUrgencyRank } from "@/lib/deadline";
 
 export default async function MyTasksPage() {
   const user = await requireUser();
 
-  const rows = await db
-    .select({
-      id: workItems.id,
-      number: workItems.number,
-      title: workItems.title,
-      status: workItems.status,
-      priority: workItems.priority,
-      dueDate: workItems.dueDate,
-      projectName: projects.name,
-      projectSlug: projects.slug,
-    })
-    .from(workItems)
-    .innerJoin(projects, eq(workItems.projectId, projects.id))
-    .where(eq(workItems.assigneeId, user.id));
+  const [rows, activeUsers] = await Promise.all([
+    db
+      .select({
+        id: workItems.id,
+        number: workItems.number,
+        title: workItems.title,
+        status: workItems.status,
+        priority: workItems.priority,
+        dueDate: workItems.dueDate,
+        projectName: projects.name,
+        projectSlug: projects.slug,
+      })
+      .from(workItems)
+      .innerJoin(projects, eq(workItems.projectId, projects.id))
+      .where(eq(workItems.assigneeId, user.id)),
+    db
+      .select({ id: users.id, name: users.name })
+      .from(users)
+      .where(eq(users.isActive, true)),
+  ]);
 
   const sorted = [...rows].sort((a, b) => {
-    if (!a.dueDate && b.dueDate) return -1;
-    if (a.dueDate && !b.dueDate) return 1;
+    const rankA = deadlineUrgencyRank(getDeadlineStatus(a.dueDate, a.status));
+    const rankB = deadlineUrgencyRank(getDeadlineStatus(b.dueDate, b.status));
+    if (rankA !== rankB) return rankA - rankB;
     if (a.dueDate && b.dueDate) return a.dueDate.localeCompare(b.dueDate);
     return 0;
   });
@@ -68,13 +78,25 @@ export default async function MyTasksPage() {
                       {item.priority}
                     </Badge>
                   )}
+                  <DeadlineBadge dueDate={item.dueDate} status={item.status} />
                 </div>
               </div>
-              <DueDateEditor
-                workItemId={item.id}
-                dueDate={item.dueDate}
-                canEdit
-              />
+              <div className="flex items-center gap-2">
+                <DueDateEditor
+                  workItemId={item.id}
+                  dueDate={item.dueDate}
+                  slug={item.projectSlug}
+                  canEdit
+                />
+                <AssignWorkItemDialog
+                  workItemId={item.id}
+                  slug={item.projectSlug}
+                  currentAssigneeId={user.id}
+                  currentAssigneeName={user.name}
+                  currentDueDate={item.dueDate}
+                  assignees={activeUsers}
+                />
+              </div>
             </div>
           ))}
         </div>

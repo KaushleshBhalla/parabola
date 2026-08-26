@@ -34,11 +34,17 @@ export function NewWorkItemDialog({
   assignees: { id: string; name: string }[];
 }) {
   const [open, setOpen] = useState(false);
-  const [, action, pending] = useActionState(async (_prev: null, formData: FormData) => {
-    await createWorkItem(formData);
-    setOpen(false);
-    return null;
-  }, null);
+  const [assigneeId, setAssigneeId] = useState("");
+  const [state, action, pending] = useActionState(
+    async (_prev: { error: string } | null, formData: FormData) => {
+      const result = await createWorkItem(formData);
+      if (result?.error) return result;
+      setOpen(false);
+      setAssigneeId("");
+      return null;
+    },
+    null
+  );
 
   return (
     <Dialog open={open} onOpenChange={(next) => setOpen(next)}>
@@ -79,7 +85,11 @@ export function NewWorkItemDialog({
             </div>
             <div className="flex flex-1 flex-col gap-1.5">
               <Label htmlFor="assigneeId">Assignee</Label>
-              <Select name="assigneeId">
+              <Select
+                name="assigneeId"
+                value={assigneeId}
+                onValueChange={(value) => setAssigneeId(value ?? "")}
+              >
                 <SelectTrigger id="assigneeId" className="w-full">
                   <SelectValue placeholder="Unassigned" />
                 </SelectTrigger>
@@ -93,6 +103,15 @@ export function NewWorkItemDialog({
               </Select>
             </div>
           </div>
+          {assigneeId && (
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="dueDate">Deadline</Label>
+              <Input id="dueDate" name="dueDate" type="date" required />
+            </div>
+          )}
+          {state?.error && (
+            <p className="text-sm text-destructive">{state.error}</p>
+          )}
           <DialogFooter>
             <DialogClose render={<Button type="button" variant="outline" />}>
               Cancel
