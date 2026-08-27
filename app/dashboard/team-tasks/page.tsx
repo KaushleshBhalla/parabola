@@ -3,6 +3,7 @@ import { eq, isNotNull, inArray } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import { workItems, projects, users, projectMembers } from "@/lib/db/schema";
 import { requireUser, hasRole } from "@/lib/auth/rbac";
+import { getPrimaryOrganization, getOrganizationMemberUsers } from "@/lib/organizations";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -13,6 +14,7 @@ import { getDeadlineStatus, deadlineUrgencyRank } from "@/lib/deadline";
 export default async function TeamTasksPage() {
   const user = await requireUser();
   const isPrivileged = hasRole(user.role, "admin");
+  const org = await getPrimaryOrganization(user.id);
 
   let visibleProjectIds: string[] | null = null;
   if (!isPrivileged) {
@@ -26,10 +28,7 @@ export default async function TeamTasksPage() {
   const hasNoMemberships =
     visibleProjectIds !== null && visibleProjectIds.length === 0;
 
-  const activeUsersPromise = db
-    .select({ id: users.id, name: users.name })
-    .from(users)
-    .where(eq(users.isActive, true));
+  const activeUsersPromise = getOrganizationMemberUsers(org?.id ?? null);
 
   const rows = hasNoMemberships
     ? []

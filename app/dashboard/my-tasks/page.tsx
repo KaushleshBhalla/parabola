@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db/client";
-import { workItems, projects, users } from "@/lib/db/schema";
+import { workItems, projects } from "@/lib/db/schema";
 import { requireUser } from "@/lib/auth/rbac";
+import { getPrimaryOrganization, getOrganizationMemberUsers } from "@/lib/organizations";
 import { Badge } from "@/components/ui/badge";
 import { DueDateEditor } from "@/app/dashboard/[slug]/work-items/due-date-editor";
 import { AssignWorkItemDialog } from "@/app/dashboard/[slug]/work-items/assign-work-item-dialog";
@@ -11,6 +12,7 @@ import { getDeadlineStatus, deadlineUrgencyRank } from "@/lib/deadline";
 
 export default async function MyTasksPage() {
   const user = await requireUser();
+  const org = await getPrimaryOrganization(user.id);
 
   const [rows, activeUsers] = await Promise.all([
     db
@@ -27,10 +29,7 @@ export default async function MyTasksPage() {
       .from(workItems)
       .innerJoin(projects, eq(workItems.projectId, projects.id))
       .where(eq(workItems.assigneeId, user.id)),
-    db
-      .select({ id: users.id, name: users.name })
-      .from(users)
-      .where(eq(users.isActive, true)),
+    getOrganizationMemberUsers(org?.id ?? null),
   ]);
 
   const sorted = [...rows].sort((a, b) => {

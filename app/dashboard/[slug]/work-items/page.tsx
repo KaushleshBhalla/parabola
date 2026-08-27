@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import { projects, workItems, users } from "@/lib/db/schema";
 import { requireUser, hasRole } from "@/lib/auth/rbac";
+import { getOrganizationMemberUsers } from "@/lib/organizations";
 import { WorkItemsBoard, type BoardItem } from "./board";
 import { NewWorkItemDialog } from "./new-work-item-dialog";
 
@@ -37,10 +38,7 @@ export default async function WorkItemsPage({
       .from(workItems)
       .leftJoin(users, eq(workItems.assigneeId, users.id))
       .where(eq(workItems.projectId, project.id)),
-    db
-      .select({ id: users.id, name: users.name })
-      .from(users)
-      .where(eq(users.isActive, true)),
+    getOrganizationMemberUsers(project.organizationId),
   ]);
 
   const items: BoardItem[] = rows.map((r) => ({
