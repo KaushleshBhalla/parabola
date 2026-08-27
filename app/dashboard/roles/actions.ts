@@ -14,23 +14,30 @@ import {
 import { requireUser, hasPermission } from "@/lib/auth/rbac";
 import { isPermissionKey, type PermissionKey } from "@/lib/permissions";
 import { logActivity } from "@/lib/activity";
+import { DEMO_BLOCKED_MESSAGE } from "@/lib/demo";
 
 type ActionResult = { error: string } | undefined;
 
 async function requireCanManageRoles(organizationId: string) {
   const user = await requireUser();
+  const [org] = await db
+    .select({ isDemo: organizations.isDemo })
+    .from(organizations)
+    .where(eq(organizations.id, organizationId))
+    .limit(1);
+  if (org?.isDemo) return { user, ok: false as const, demo: true as const };
   if (!(await hasPermission(user.id, organizationId, "role.manage"))) {
-    return { user, ok: false as const };
+    return { user, ok: false as const, demo: false as const };
   }
-  return { user, ok: true as const };
+  return { user, ok: true as const, demo: false as const };
 }
 
 export async function inviteMember(
   organizationId: string,
   email: string
 ): Promise<ActionResult> {
-  const { user, ok } = await requireCanManageRoles(organizationId);
-  if (!ok) return { error: "You don't have permission to invite members." };
+  const { user, ok, demo } = await requireCanManageRoles(organizationId);
+  if (!ok) return { error: demo ? DEMO_BLOCKED_MESSAGE : "You don't have permission to invite members." };
   const normalizedEmail = email.trim().toLowerCase();
   if (!normalizedEmail) return { error: "Email is required." };
 
@@ -56,8 +63,8 @@ export async function createRole(
   name: string,
   permissionKeys: string[]
 ): Promise<ActionResult> {
-  const { user, ok } = await requireCanManageRoles(organizationId);
-  if (!ok) return { error: "You don't have permission to manage roles." };
+  const { user, ok, demo } = await requireCanManageRoles(organizationId);
+  if (!ok) return { error: demo ? DEMO_BLOCKED_MESSAGE : "You don't have permission to manage roles." };
   const trimmed = name.trim();
   if (!trimmed) return { error: "Role name is required." };
 
@@ -94,8 +101,8 @@ export async function updateRolePermissions(
   if (!role) return { error: "Role not found." };
   if (role.isOwnerRole) return { error: "The Owner role can't be edited." };
 
-  const { user, ok } = await requireCanManageRoles(role.organizationId);
-  if (!ok) return { error: "You don't have permission to manage roles." };
+  const { user, ok, demo } = await requireCanManageRoles(role.organizationId);
+  if (!ok) return { error: demo ? DEMO_BLOCKED_MESSAGE : "You don't have permission to manage roles." };
 
   const validKeys = permissionKeys.filter(isPermissionKey) as PermissionKey[];
 
@@ -127,8 +134,8 @@ export async function deleteRole(roleId: string): Promise<ActionResult> {
     return { error: "The Owner and Everyone roles can't be deleted." };
   }
 
-  const { user, ok } = await requireCanManageRoles(role.organizationId);
-  if (!ok) return { error: "You don't have permission to manage roles." };
+  const { user, ok, demo } = await requireCanManageRoles(role.organizationId);
+  if (!ok) return { error: demo ? DEMO_BLOCKED_MESSAGE : "You don't have permission to manage roles." };
 
   await db.delete(roles).where(eq(roles.id, roleId));
 
@@ -154,8 +161,8 @@ export async function setMemberRoles(
     .limit(1);
   if (!member) return { error: "Member not found." };
 
-  const { user, ok } = await requireCanManageRoles(member.organizationId);
-  if (!ok) return { error: "You don't have permission to manage roles." };
+  const { user, ok, demo } = await requireCanManageRoles(member.organizationId);
+  if (!ok) return { error: demo ? DEMO_BLOCKED_MESSAGE : "You don't have permission to manage roles." };
 
   // The Owner role is immutable and never touched by this generic picker —
   // otherwise anyone holding role.manage could grant themselves Owner, or
@@ -235,8 +242,8 @@ export async function removeMember(
     return { error: "The organization's creator can't be removed." };
   }
 
-  const { user, ok } = await requireCanManageRoles(member.organizationId);
-  if (!ok) return { error: "You don't have permission to remove members." };
+  const { user, ok, demo } = await requireCanManageRoles(member.organizationId);
+  if (!ok) return { error: demo ? DEMO_BLOCKED_MESSAGE : "You don't have permission to remove members." };
 
   await db
     .delete(organizationMembers)

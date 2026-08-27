@@ -9,10 +9,12 @@ import {
   Users,
   ScrollText,
   ShieldCheck,
+  Sparkles,
 } from "lucide-react";
 import { SignOutButton } from "@clerk/nextjs";
 import { requireUser, hasRole, hasPermission } from "@/lib/auth/rbac";
 import { getUserOrganizations } from "@/lib/organizations";
+import { DEMO_CREATION_LIMIT } from "@/lib/demo";
 import { db } from "@/lib/db/client";
 import { notifications, workItems, projects } from "@/lib/db/schema";
 import { Button } from "@/components/ui/button";
@@ -29,6 +31,7 @@ export default async function DashboardLayout({
   if (userOrgs.length === 0) redirect("/onboarding");
   const canManageTeam = hasRole(user.role, "admin");
   const isOwner = hasRole(user.role, "owner");
+  const isDemo = userOrgs[0]?.isDemo ?? false;
   const canManageRoles = await hasPermission(
     user.id,
     userOrgs[0].id,
@@ -117,6 +120,15 @@ export default async function DashboardLayout({
               Activity log
             </Link>
           )}
+          {isDemo && (
+            <Link
+              href="/dashboard/request-access"
+              className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 font-medium text-primary hover:bg-muted"
+            >
+              <Sparkles className="size-4" />
+              Upgrade to Pro
+            </Link>
+          )}
         </nav>
         <div className="flex items-center gap-2 border-t pt-3">
           <Avatar size="sm">
@@ -141,7 +153,23 @@ export default async function DashboardLayout({
           </SignOutButton>
         </div>
       </aside>
-      <main className="flex-1 overflow-y-auto">{children}</main>
+      <main className="flex flex-1 flex-col overflow-y-auto">
+        {isDemo && (
+          <div className="flex items-center justify-between border-b bg-primary/5 px-6 py-2 text-sm">
+            <span>
+              You&apos;re exploring a demo workspace — up to{" "}
+              {DEMO_CREATION_LIMIT} things to try before you need Pro access.
+            </span>
+            <Link
+              href="/dashboard/request-access"
+              className="font-medium text-primary hover:underline"
+            >
+              Request Pro access
+            </Link>
+          </div>
+        )}
+        <div className="flex-1">{children}</div>
+      </main>
     </div>
   );
 }

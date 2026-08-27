@@ -22,3 +22,4 @@ alter table roles enable row level security;
 alter table role_permissions enable row level security;
 alter table organization_members enable row level security;
 alter table member_roles enable row level security;
+alter table access_requests enable row level security;

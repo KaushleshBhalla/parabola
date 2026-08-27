@@ -12,6 +12,11 @@ import {
 } from "@/lib/db/schema";
 import { requireUser, canAccessProject, hasRole } from "@/lib/auth/rbac";
 import { logActivity } from "@/lib/activity";
+import {
+  getProjectDemoState,
+  assertDemoCreationAllowed,
+  incrementDemoUsage,
+} from "@/lib/demo";
 
 const STATUSES = [
   "backlog",
@@ -50,6 +55,10 @@ export async function createWorkItem(
     return { error: "You don't have access to this project." };
   if (assigneeIdInput && !dueDateInput)
     return { error: "A deadline is required when assigning a task." };
+
+  const demoState = await getProjectDemoState(projectId);
+  const demoBlocked = assertDemoCreationAllowed(demoState);
+  if (demoBlocked) return { error: demoBlocked };
 
   const [counter, [top]] = await Promise.all([
     db
@@ -93,6 +102,10 @@ export async function createWorkItem(
       body: `You were assigned "${title}".`,
       workItemId: workItem.id,
     });
+  }
+
+  if (demoState?.isDemo && demoState.organizationId) {
+    await incrementDemoUsage(demoState.organizationId);
   }
 
   await logActivity({
@@ -375,7 +388,7 @@ export async function addWorkItemComment(
   workItemId: string,
   body: string,
   slug: string
-) {
+): Promise<{ error: string } | undefined> {
   const user = await requireUser();
   const trimmed = body.trim();
   if (!trimmed) return;
@@ -387,11 +400,19 @@ export async function addWorkItemComment(
     .limit(1);
   if (!item || !(await canAccessProject(user, item.projectId))) return;
 
+  const demoState = await getProjectDemoState(item.projectId);
+  const demoBlocked = assertDemoCreationAllowed(demoState);
+  if (demoBlocked) return { error: demoBlocked };
+
   await db.insert(workItemComments).values({
     workItemId,
     authorId: user.id,
     body: trimmed,
   });
+
+  if (demoState?.isDemo && demoState.organizationId) {
+    await incrementDemoUsage(demoState.organizationId);
+  }
 
   await logActivity({
     actorId: user.id,

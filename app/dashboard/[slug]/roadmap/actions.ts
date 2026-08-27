@@ -6,11 +6,18 @@ import { db } from "@/lib/db/client";
 import { roadmapItems } from "@/lib/db/schema";
 import { requireUser, canAccessProject } from "@/lib/auth/rbac";
 import { logActivity } from "@/lib/activity";
+import {
+  getProjectDemoState,
+  assertDemoCreationAllowed,
+  incrementDemoUsage,
+} from "@/lib/demo";
 
 const STATUSES = ["planned", "in_progress", "done"] as const;
 type Status = (typeof STATUSES)[number];
 
-export async function createRoadmapItem(formData: FormData) {
+export async function createRoadmapItem(
+  formData: FormData
+): Promise<{ error: string } | undefined> {
   const user = await requireUser();
   const projectId = String(formData.get("projectId") ?? "");
   const slug = String(formData.get("slug") ?? "");
@@ -26,6 +33,10 @@ export async function createRoadmapItem(formData: FormData) {
   if (!title || !projectId) return;
   if (!(await canAccessProject(user, projectId))) return;
 
+  const demoState = await getProjectDemoState(projectId);
+  const demoBlocked = assertDemoCreationAllowed(demoState);
+  if (demoBlocked) return { error: demoBlocked };
+
   const [item] = await db
     .insert(roadmapItems)
     .values({
@@ -38,6 +49,10 @@ export async function createRoadmapItem(formData: FormData) {
       createdBy: user.id,
     })
     .returning();
+
+  if (demoState?.isDemo && demoState.organizationId) {
+    await incrementDemoUsage(demoState.organizationId);
+  }
 
   await logActivity({
     actorId: user.id,

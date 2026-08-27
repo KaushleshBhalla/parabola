@@ -5,8 +5,15 @@ import { db } from "@/lib/db/client";
 import { chatMessages } from "@/lib/db/schema";
 import { requireUser, canAccessProject } from "@/lib/auth/rbac";
 import { logActivity } from "@/lib/activity";
+import {
+  getProjectDemoState,
+  assertDemoCreationAllowed,
+  incrementDemoUsage,
+} from "@/lib/demo";
 
-export async function postMessage(formData: FormData) {
+export async function postMessage(
+  formData: FormData
+): Promise<{ error: string } | undefined> {
   const user = await requireUser();
   const projectId = String(formData.get("projectId") ?? "");
   const slug = String(formData.get("slug") ?? "");
@@ -14,6 +21,10 @@ export async function postMessage(formData: FormData) {
 
   if (!body || !projectId) return;
   if (!(await canAccessProject(user, projectId))) return;
+
+  const demoState = await getProjectDemoState(projectId);
+  const demoBlocked = assertDemoCreationAllowed(demoState);
+  if (demoBlocked) return { error: demoBlocked };
 
   const [message] = await db
     .insert(chatMessages)
@@ -23,6 +34,10 @@ export async function postMessage(formData: FormData) {
       body,
     })
     .returning();
+
+  if (demoState?.isDemo && demoState.organizationId) {
+    await incrementDemoUsage(demoState.organizationId);
+  }
 
   await logActivity({
     actorId: user.id,

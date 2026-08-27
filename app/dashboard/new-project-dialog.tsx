@@ -19,11 +19,15 @@ import { createProject } from "./actions";
 
 export function NewProjectDialog() {
   const [open, setOpen] = useState(false);
-  const [, action, pending] = useActionState(async (_prev: null, formData: FormData) => {
-    await createProject(formData);
-    setOpen(false);
-    return null;
-  }, null);
+  const [error, action, pending] = useActionState<string | null, FormData>(
+    async (_prev, formData) => {
+      const result = await createProject(formData);
+      if (result?.error) return result.error;
+      setOpen(false);
+      return null;
+    },
+    null
+  );
 
   return (
     <Dialog open={open} onOpenChange={(next) => setOpen(next)}>
@@ -44,6 +48,7 @@ export function NewProjectDialog() {
             <Label htmlFor="description">Description</Label>
             <Textarea id="description" name="description" rows={3} />
           </div>
+          {error && <p className="text-sm text-destructive">{error}</p>}
           <DialogFooter>
             <DialogClose render={<Button type="button" variant="outline" />}>
               Cancel

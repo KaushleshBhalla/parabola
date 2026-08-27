@@ -10,6 +10,7 @@ import {
 } from "@/lib/db/schema";
 import { ALL_PERMISSIONS, DEFAULT_ROLE_PERMISSIONS } from "@/lib/permissions";
 import { isRazorpayConfigured } from "@/lib/payments/razorpay";
+import { seedDemoProject } from "@/lib/demo/seed";
 
 /**
  * A user can belong to multiple organizations in the data model, but the
@@ -29,6 +30,7 @@ export async function getUserOrganizations(userId: string) {
       name: organizations.name,
       slug: organizations.slug,
       paymentStatus: organizations.paymentStatus,
+      isDemo: organizations.isDemo,
     })
     .from(organizationMembers)
     .innerJoin(
@@ -107,4 +109,77 @@ export async function createOrganizationForUser(
 
     return org;
   });
+}
+
+/**
+ * Every new sign-up gets one of these automatically, no payment step: a
+ * solo, sandboxed org pre-loaded with a bot-guided demo project. Upgrading
+ * someone to a real paid org is a manual step for now (see
+ * app/dashboard/request-access) — this is not wired to Razorpay.
+ */
+export async function createDemoOrganizationForUser(userId: string, name: string) {
+  const slug = `demo-${userId.slice(0, 8)}`;
+
+  const org = await db.transaction(async (tx) => {
+    const [org] = await tx
+      .insert(organizations)
+      .values({
+        name: `${name}'s Demo Workspace`,
+        slug,
+        createdBy: userId,
+        paymentStatus: "paid",
+        isDemo: true,
+      })
+      .returning();
+
+    const [ownerRole] = await tx
+      .insert(roles)
+      .values({
+        organizationId: org.id,
+        name: "Owner",
+        isOwnerRole: true,
+        position: 0,
+      })
+      .returning();
+
+    await tx.insert(rolePermissions).values(
+      ALL_PERMISSIONS.map((permissionKey) => ({
+        roleId: ownerRole.id,
+        permissionKey,
+      }))
+    );
+
+    const [everyoneRole] = await tx
+      .insert(roles)
+      .values({
+        organizationId: org.id,
+        name: "Everyone",
+        isDefault: true,
+        position: 1,
+      })
+      .returning();
+
+    await tx.insert(rolePermissions).values(
+      DEFAULT_ROLE_PERMISSIONS.map((permissionKey) => ({
+        roleId: everyoneRole.id,
+        permissionKey,
+      }))
+    );
+
+    const [member] = await tx
+      .insert(organizationMembers)
+      .values({ organizationId: org.id, userId })
+      .returning();
+
+    await tx.insert(memberRoles).values([
+      { organizationMemberId: member.id, roleId: ownerRole.id },
+      { organizationMemberId: member.id, roleId: everyoneRole.id },
+    ]);
+
+    return org;
+  });
+
+  await seedDemoProject(org.id, userId);
+
+  return org;
 }

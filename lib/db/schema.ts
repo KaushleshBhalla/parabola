@@ -63,6 +63,13 @@ export const paymentStatusEnum = pgEnum("payment_status", [
   "paid",
 ]);
 
+export const accessRequestStatusEnum = pgEnum("access_request_status", [
+  "pending",
+  "contacted",
+  "approved",
+  "declined",
+]);
+
 // ============ USERS & SESSIONS ============
 
 export const users = pgTable(
@@ -75,6 +82,7 @@ export const users = pgTable(
     role: userRoleEnum("role").notNull().default("member"),
     avatarUrl: text("avatar_url"),
     isActive: boolean("is_active").notNull().default(true),
+    isBot: boolean("is_bot").notNull().default(false),
     lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
     createdBy: uuid("created_by"),
@@ -106,6 +114,8 @@ export const organizations = pgTable("organizations", {
   razorpayPaymentId: text("razorpay_payment_id"),
   amountCents: integer("amount_cents").notNull().default(4900),
   currency: text("currency").notNull().default("USD"),
+  isDemo: boolean("is_demo").notNull().default(false),
+  demoCreationsUsed: integer("demo_creations_used").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -463,4 +473,25 @@ export const notifications = pgTable(
       table.createdAt
     ),
   ]
+);
+
+// ============ ACCESS REQUESTS (demo -> pro) ============
+
+export const accessRequests = pgTable(
+  "access_requests",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    organizationId: uuid("organization_id").references(() => organizations.id, {
+      onDelete: "set null",
+    }),
+    userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
+    name: text("name").notNull(),
+    email: text("email").notNull(),
+    message: text("message"),
+    status: accessRequestStatusEnum("status").notNull().default("pending"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [index("access_requests_status_idx").on(table.status)]
 );

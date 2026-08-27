@@ -4,9 +4,7 @@ import { formatDistanceToNow } from "date-fns";
 import { db } from "@/lib/db/client";
 import { projects, chatMessages, users } from "@/lib/db/schema";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { postMessage } from "./actions";
+import { ChatComposer } from "./chat-composer";
 
 export default async function ChatPage({
   params,
@@ -69,15 +67,7 @@ export default async function ChatPage({
           </div>
         )}
       </div>
-      <form
-        action={postMessage}
-        className="flex items-center gap-2 border-t px-6 py-3"
-      >
-        <input type="hidden" name="projectId" value={project.id} />
-        <input type="hidden" name="slug" value={slug} />
-        <Input name="body" placeholder="Message the team…" required />
-        <Button type="submit">Send</Button>
-      </form>
+      <ChatComposer projectId={project.id} slug={slug} />
     </div>
   );
 }

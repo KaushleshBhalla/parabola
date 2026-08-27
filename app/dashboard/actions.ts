@@ -7,6 +7,7 @@ import { projects, projectCounters } from "@/lib/db/schema";
 import { requireRole } from "@/lib/auth/rbac";
 import { getPrimaryOrganization } from "@/lib/organizations";
 import { logActivity } from "@/lib/activity";
+import { DEMO_LIMIT_MESSAGE } from "@/lib/demo";
 
 function slugify(name: string) {
   return name
@@ -16,11 +17,16 @@ function slugify(name: string) {
     .replace(/(^-|-$)/g, "");
 }
 
-export async function createProject(formData: FormData) {
+export async function createProject(
+  formData: FormData
+): Promise<{ error: string } | undefined> {
   const user = await requireRole("admin");
   const name = String(formData.get("name") ?? "").trim();
   const description = String(formData.get("description") ?? "").trim();
   if (!name) return;
+
+  const org = await getPrimaryOrganization(user.id);
+  if (org?.isDemo) return { error: DEMO_LIMIT_MESSAGE };
 
   const baseSlug = slugify(name) || "project";
   let slug = baseSlug;
@@ -34,8 +40,6 @@ export async function createProject(formData: FormData) {
     if (!existing) break;
     slug = `${baseSlug}-${++suffix}`;
   }
-
-  const org = await getPrimaryOrganization(user.id);
 
   const [project] = await db
     .insert(projects)
