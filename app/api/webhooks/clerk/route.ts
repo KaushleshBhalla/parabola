@@ -46,9 +46,9 @@ export async function POST(req: NextRequest) {
 
   if (evt.type === "user.created") {
     const clerkUser = evt.data;
-    const email = clerkUser.email_addresses.find(
-      (e) => e.id === clerkUser.primary_email_address_id
-    )?.email_address;
+    const email = clerkUser.email_addresses
+      .find((e) => e.id === clerkUser.primary_email_address_id)
+      ?.email_address?.toLowerCase();
     const invitedOrgId =
       typeof clerkUser.public_metadata?.organizationId === "string"
         ? clerkUser.public_metadata.organizationId

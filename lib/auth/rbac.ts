@@ -40,9 +40,9 @@ export async function requireUser() {
   // user can hit a page before it arrives. Self-heal here instead of
   // bouncing them back to /login in a loop.
   const clerkUser = await currentUser();
-  const email = clerkUser?.emailAddresses.find(
-    (e) => e.id === clerkUser.primaryEmailAddressId
-  )?.emailAddress;
+  const email = clerkUser?.emailAddresses
+    .find((e) => e.id === clerkUser.primaryEmailAddressId)
+    ?.emailAddress?.toLowerCase();
   if (!clerkUser || !email) redirect("/login");
 
   const [byEmail] = await db
@@ -61,18 +61,32 @@ export async function requireUser() {
     return linked;
   }
 
-  const [created] = await db
-    .insert(users)
-    .values({
-      clerkUserId,
-      name:
-        [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ") ||
+  try {
+    const [created] = await db
+      .insert(users)
+      .values({
+        clerkUserId,
+        name:
+          [clerkUser.firstName, clerkUser.lastName]
+            .filter(Boolean)
+            .join(" ") || email,
         email,
-      email,
-      role: "member",
-    })
-    .returning();
-  return created;
+        role: "member",
+      })
+      .returning();
+    return created;
+  } catch {
+    // Concurrent first requests can both reach here for the same brand-new
+    // user; the loser hits the unique email/clerk_user_id constraint. Fall
+    // back to whichever row the winner created instead of erroring out.
+    const [raceWinner] = await db
+      .select()
+      .from(users)
+      .where(eq(users.clerkUserId, clerkUserId))
+      .limit(1);
+    if (raceWinner) return raceWinner;
+    throw new Error("Failed to create or find user account.");
+  }
 }
 
 export async function requireRole(minRole: Role) {
@@ -143,11 +157,4 @@ export async function hasPermission(
   return grants.some(
     (g) => g.isOwnerRole || g.permissionKey === permission
   );
-}
-
-export async function requireOrganizationMember(organizationId: string) {
-  const user = await requireUser();
-  const member = await getOrganizationMember(user.id, organizationId);
-  if (!member) redirect("/dashboard");
-  return user;
 }

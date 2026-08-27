@@ -26,7 +26,7 @@ function isAssignableRole(value: string): value is AssignableRole {
 export async function createUser(formData: FormData) {
   const actor = await requireRole("admin");
   const name = String(formData.get("name") ?? "").trim();
-  const login = String(formData.get("login") ?? "").trim();
+  const login = String(formData.get("login") ?? "").trim().toLowerCase();
   const roleInput = String(formData.get("role") ?? "member");
   const role: AssignableRole = isAssignableRole(roleInput) ? roleInput : "member";
 

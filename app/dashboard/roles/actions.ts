@@ -31,11 +31,12 @@ export async function inviteMember(
 ): Promise<ActionResult> {
   const { user, ok } = await requireCanManageRoles(organizationId);
   if (!ok) return { error: "You don't have permission to invite members." };
-  if (!email.trim()) return { error: "Email is required." };
+  const normalizedEmail = email.trim().toLowerCase();
+  if (!normalizedEmail) return { error: "Email is required." };
 
   const client = await clerkClient();
   await client.invitations.createInvitation({
-    emailAddress: email.trim(),
+    emailAddress: normalizedEmail,
     publicMetadata: { organizationId },
   });
 
@@ -44,7 +45,7 @@ export async function inviteMember(
     action: "organization.member_invited",
     entityType: "organization",
     entityId: organizationId,
-    searchText: `Invited ${email} to the organization`,
+    searchText: `Invited ${normalizedEmail} to the organization`,
   });
 
   revalidatePath("/dashboard/roles");
@@ -156,6 +157,10 @@ export async function setMemberRoles(
   const { user, ok } = await requireCanManageRoles(member.organizationId);
   if (!ok) return { error: "You don't have permission to manage roles." };
 
+  // The Owner role is immutable and never touched by this generic picker —
+  // otherwise anyone holding role.manage could grant themselves Owner, or
+  // strip it from the organization's real owner. It can only be granted at
+  // organization-creation time.
   const validRoles = roleIds.length
     ? await db
         .select({ id: roles.id })
@@ -163,6 +168,7 @@ export async function setMemberRoles(
         .where(
           and(
             eq(roles.organizationId, member.organizationId),
+            eq(roles.isOwnerRole, false),
             inArray(roles.id, roleIds)
           )
         )
@@ -171,7 +177,23 @@ export async function setMemberRoles(
   await db.transaction(async (tx) => {
     await tx
       .delete(memberRoles)
-      .where(eq(memberRoles.organizationMemberId, organizationMemberId));
+      .where(
+        and(
+          eq(memberRoles.organizationMemberId, organizationMemberId),
+          inArray(
+            memberRoles.roleId,
+            tx
+              .select({ id: roles.id })
+              .from(roles)
+              .where(
+                and(
+                  eq(roles.organizationId, member.organizationId),
+                  eq(roles.isOwnerRole, false)
+                )
+              )
+          )
+        )
+      );
     if (validRoles.length > 0) {
       await tx.insert(memberRoles).values(
         validRoles.map((r) => ({
