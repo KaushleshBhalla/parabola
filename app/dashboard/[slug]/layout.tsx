@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import { projects } from "@/lib/db/schema";
 import { requireUser, canAccessProject, hasRole } from "@/lib/auth/rbac";
+import { getPrimaryOrganization } from "@/lib/organizations";
 import { ProjectNav } from "./project-nav";
 
 export default async function ProjectLayout({
@@ -21,6 +22,8 @@ export default async function ProjectLayout({
     .limit(1);
 
   if (!project) notFound();
+  const org = await getPrimaryOrganization(user.id);
+  if (project.organizationId && project.organizationId !== org?.id) notFound();
   if (!(await canAccessProject(user, project.id))) notFound();
 
   return (

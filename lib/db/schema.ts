@@ -58,6 +58,11 @@ export const notificationTypeEnum = pgEnum("notification_type", [
   "due_date_changed",
 ]);
 
+export const paymentStatusEnum = pgEnum("payment_status", [
+  "pending",
+  "paid",
+]);
+
 // ============ USERS & SESSIONS ============
 
 export const users = pgTable(
@@ -89,6 +94,97 @@ export const users = pgTable(
   ]
 );
 
+// ============ ORGANIZATIONS & ROLES ============
+
+export const organizations = pgTable("organizations", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull(),
+  slug: text("slug").notNull().unique(),
+  createdBy: uuid("created_by").references(() => users.id),
+  paymentStatus: paymentStatusEnum("payment_status").notNull().default("pending"),
+  razorpayOrderId: text("razorpay_order_id"),
+  razorpayPaymentId: text("razorpay_payment_id"),
+  amountCents: integer("amount_cents").notNull().default(4900),
+  currency: text("currency").notNull().default("USD"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export const roles = pgTable(
+  "roles",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    color: text("color"),
+    position: doublePrecision("position").notNull().default(0),
+    isDefault: boolean("is_default").notNull().default(false),
+    isOwnerRole: boolean("is_owner_role").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("roles_org_name_idx").on(table.organizationId, table.name),
+    index("roles_org_idx").on(table.organizationId),
+  ]
+);
+
+export const rolePermissions = pgTable(
+  "role_permissions",
+  {
+    roleId: uuid("role_id")
+      .notNull()
+      .references(() => roles.id, { onDelete: "cascade" }),
+    permissionKey: text("permission_key").notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.roleId, table.permissionKey] })]
+);
+
+export const organizationMembers = pgTable(
+  "organization_members",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    joinedAt: timestamp("joined_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("org_members_org_user_idx").on(
+      table.organizationId,
+      table.userId
+    ),
+    index("org_members_user_idx").on(table.userId),
+  ]
+);
+
+export const memberRoles = pgTable(
+  "member_roles",
+  {
+    organizationMemberId: uuid("organization_member_id")
+      .notNull()
+      .references(() => organizationMembers.id, { onDelete: "cascade" }),
+    roleId: uuid("role_id")
+      .notNull()
+      .references(() => roles.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    primaryKey({ columns: [table.organizationMemberId, table.roleId] }),
+  ]
+);
+
 // ============ PROJECTS ============
 
 export const projects = pgTable("projects", {
@@ -97,6 +193,9 @@ export const projects = pgTable("projects", {
   slug: text("slug").notNull().unique(),
   description: text("description"),
   color: text("color"),
+  organizationId: uuid("organization_id").references(() => organizations.id, {
+    onDelete: "cascade",
+  }),
   createdBy: uuid("created_by").references(() => users.id),
   archivedAt: timestamp("archived_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true })

@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import { projects, projectCounters } from "@/lib/db/schema";
 import { requireRole } from "@/lib/auth/rbac";
+import { getPrimaryOrganization } from "@/lib/organizations";
 import { logActivity } from "@/lib/activity";
 
 function slugify(name: string) {
@@ -34,12 +35,15 @@ export async function createProject(formData: FormData) {
     slug = `${baseSlug}-${++suffix}`;
   }
 
+  const org = await getPrimaryOrganization(user.id);
+
   const [project] = await db
     .insert(projects)
     .values({
       name,
       slug,
       description: description || null,
+      organizationId: org?.id,
       createdBy: user.id,
     })
     .returning();

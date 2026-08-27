@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { desc, eq } from "drizzle-orm";
 import {
   LayoutGrid,
@@ -7,9 +8,11 @@ import {
   ListChecks,
   Users,
   ScrollText,
+  ShieldCheck,
 } from "lucide-react";
 import { SignOutButton } from "@clerk/nextjs";
-import { requireUser, hasRole } from "@/lib/auth/rbac";
+import { requireUser, hasRole, hasPermission } from "@/lib/auth/rbac";
+import { getUserOrganizations } from "@/lib/organizations";
 import { db } from "@/lib/db/client";
 import { notifications, workItems, projects } from "@/lib/db/schema";
 import { Button } from "@/components/ui/button";
@@ -22,8 +25,15 @@ export default async function DashboardLayout({
   children: React.ReactNode;
 }) {
   const user = await requireUser();
+  const userOrgs = await getUserOrganizations(user.id);
+  if (userOrgs.length === 0) redirect("/onboarding");
   const canManageTeam = hasRole(user.role, "admin");
   const isOwner = hasRole(user.role, "owner");
+  const canManageRoles = await hasPermission(
+    user.id,
+    userOrgs[0].id,
+    "role.manage"
+  );
 
   const notificationRows = await db
     .select({
@@ -87,6 +97,15 @@ export default async function DashboardLayout({
             >
               <Users className="size-4" />
               Team
+            </Link>
+          )}
+          {canManageRoles && (
+            <Link
+              href="/dashboard/roles"
+              className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 hover:bg-muted"
+            >
+              <ShieldCheck className="size-4" />
+              Roles
             </Link>
           )}
           {isOwner && (
