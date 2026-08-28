@@ -32,11 +32,15 @@ export function NewRoadmapItemDialog({
   slug: string;
 }) {
   const [open, setOpen] = useState(false);
-  const [, action, pending] = useActionState(async (_prev: null, formData: FormData) => {
-    await createRoadmapItem(formData);
-    setOpen(false);
-    return null;
-  }, null);
+  const [state, action, pending] = useActionState(
+    async (_prev: { error: string } | null, formData: FormData) => {
+      const result = await createRoadmapItem(formData);
+      if (result?.error) return result;
+      setOpen(false);
+      return null;
+    },
+    null
+  );
 
   return (
     <Dialog open={open} onOpenChange={(next) => setOpen(next)}>
@@ -82,6 +86,9 @@ export function NewRoadmapItemDialog({
               </SelectContent>
             </Select>
           </div>
+          {state?.error && (
+            <p className="text-sm text-destructive">{state.error}</p>
+          )}
           <DialogFooter>
             <DialogClose render={<Button type="button" variant="outline" />}>
               Cancel

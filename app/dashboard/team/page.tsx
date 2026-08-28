@@ -1,4 +1,4 @@
-import { desc, isNull } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
 import { formatDistanceToNow } from "date-fns";
 import { db } from "@/lib/db/client";
 import { users, projects, projectMembers } from "@/lib/db/schema";
@@ -23,7 +23,7 @@ export default async function TeamPage() {
     db
       .select()
       .from(users)
-      .where(isNull(users.deletedAt))
+      .where(and(isNull(users.deletedAt), eq(users.isBot, false)))
       .orderBy(desc(users.createdAt)),
     db.select({ id: projects.id, name: projects.name }).from(projects),
     db

@@ -1,8 +1,9 @@
 import { notFound } from "next/navigation";
-import { eq, isNull } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/lib/db/client";
-import { projects, users, projectMembers } from "@/lib/db/schema";
+import { users, projectMembers, organizationMembers } from "@/lib/db/schema";
 import { requireRole, hasRole } from "@/lib/auth/rbac";
+import { getProjectBySlug } from "@/lib/projects";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -19,17 +20,38 @@ export default async function ProjectMembersPage({
 }: {
   params: Promise<{ slug: string }>;
 }) {
-  await requireRole("admin");
   const { slug } = await params;
-  const [project] = await db
-    .select()
-    .from(projects)
-    .where(eq(projects.slug, slug))
-    .limit(1);
+  const [, project] = await Promise.all([
+    requireRole("admin"),
+    getProjectBySlug(slug),
+  ]);
   if (!project) notFound();
 
+  const orgScopedUsers = project.organizationId
+    ? db
+        .select({
+          id: users.id,
+          name: users.name,
+          role: users.role,
+        })
+        .from(organizationMembers)
+        .innerJoin(users, eq(organizationMembers.userId, users.id))
+        .where(
+          and(
+            eq(organizationMembers.organizationId, project.organizationId),
+            isNull(users.deletedAt),
+            eq(users.isBot, false)
+          )
+        )
+        .orderBy(users.name)
+    : db
+        .select({ id: users.id, name: users.name, role: users.role })
+        .from(users)
+        .where(and(isNull(users.deletedAt), eq(users.isBot, false)))
+        .orderBy(users.name);
+
   const [allUsers, members] = await Promise.all([
-    db.select().from(users).where(isNull(users.deletedAt)).orderBy(users.name),
+    orgScopedUsers,
     db
       .select({ userId: projectMembers.userId })
       .from(projectMembers)

@@ -27,7 +27,24 @@ export default async function DashboardLayout({
   children: React.ReactNode;
 }) {
   const user = await requireUser();
-  const userOrgs = await getUserOrganizations(user.id);
+
+  const [userOrgs, notificationRows] = await Promise.all([
+    getUserOrganizations(user.id),
+    db
+      .select({
+        id: notifications.id,
+        body: notifications.body,
+        isRead: notifications.isRead,
+        createdAt: notifications.createdAt,
+        projectSlug: projects.slug,
+      })
+      .from(notifications)
+      .leftJoin(workItems, eq(notifications.workItemId, workItems.id))
+      .leftJoin(projects, eq(workItems.projectId, projects.id))
+      .where(eq(notifications.userId, user.id))
+      .orderBy(desc(notifications.createdAt))
+      .limit(15),
+  ]);
   if (userOrgs.length === 0) redirect("/onboarding");
   const canManageTeam = hasRole(user.role, "admin");
   const isOwner = hasRole(user.role, "owner");
@@ -37,21 +54,6 @@ export default async function DashboardLayout({
     userOrgs[0].id,
     "role.manage"
   );
-
-  const notificationRows = await db
-    .select({
-      id: notifications.id,
-      body: notifications.body,
-      isRead: notifications.isRead,
-      createdAt: notifications.createdAt,
-      projectSlug: projects.slug,
-    })
-    .from(notifications)
-    .leftJoin(workItems, eq(notifications.workItemId, workItems.id))
-    .leftJoin(projects, eq(workItems.projectId, projects.id))
-    .where(eq(notifications.userId, user.id))
-    .orderBy(desc(notifications.createdAt))
-    .limit(15);
 
   const notificationItems: NotificationItem[] = notificationRows.map((n) => ({
     id: n.id,

@@ -2,7 +2,8 @@ import { notFound } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { Rocket } from "lucide-react";
 import { db } from "@/lib/db/client";
-import { projects, roadmapItems } from "@/lib/db/schema";
+import { roadmapItems } from "@/lib/db/schema";
+import { getProjectBySlug } from "@/lib/projects";
 import { NewRoadmapItemDialog } from "./new-roadmap-item-dialog";
 import { RoadmapItemCard } from "./roadmap-item-card";
 
@@ -12,11 +13,7 @@ export default async function RoadmapPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const [project] = await db
-    .select()
-    .from(projects)
-    .where(eq(projects.slug, slug))
-    .limit(1);
+  const project = await getProjectBySlug(slug);
   if (!project) notFound();
 
   const items = await db

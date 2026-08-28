@@ -1,9 +1,10 @@
 import { notFound } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db/client";
-import { projects, workItems, users } from "@/lib/db/schema";
+import { workItems, users } from "@/lib/db/schema";
 import { requireUser, hasRole } from "@/lib/auth/rbac";
 import { getOrganizationMemberUsers } from "@/lib/organizations";
+import { getProjectBySlug } from "@/lib/projects";
 import { WorkItemsBoard, type BoardItem } from "./board";
 import { NewWorkItemDialog } from "./new-work-item-dialog";
 
@@ -12,13 +13,8 @@ export default async function WorkItemsPage({
 }: {
   params: Promise<{ slug: string }>;
 }) {
-  const user = await requireUser();
   const { slug } = await params;
-  const [project] = await db
-    .select()
-    .from(projects)
-    .where(eq(projects.slug, slug))
-    .limit(1);
+  const [user, project] = await Promise.all([requireUser(), getProjectBySlug(slug)]);
   if (!project) notFound();
 
   const [rows, activeUsers] = await Promise.all([

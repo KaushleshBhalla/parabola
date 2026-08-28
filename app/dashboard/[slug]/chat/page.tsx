@@ -2,7 +2,8 @@ import { notFound } from "next/navigation";
 import { and, asc, eq, isNull } from "drizzle-orm";
 import { formatDistanceToNow } from "date-fns";
 import { db } from "@/lib/db/client";
-import { projects, chatMessages, users } from "@/lib/db/schema";
+import { chatMessages, users } from "@/lib/db/schema";
+import { getProjectBySlug } from "@/lib/projects";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ChatComposer } from "./chat-composer";
 
@@ -12,11 +13,7 @@ export default async function ChatPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const [project] = await db
-    .select()
-    .from(projects)
-    .where(eq(projects.slug, slug))
-    .limit(1);
+  const project = await getProjectBySlug(slug);
   if (!project) notFound();
 
   const messages = await db

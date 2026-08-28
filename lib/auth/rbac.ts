@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { redirect } from "next/navigation";
 import { and, eq } from "drizzle-orm";
 import { auth, currentUser } from "@clerk/nextjs/server";
@@ -20,7 +21,9 @@ export function hasRole(userRole: Role, minRole: Role) {
   return ROLE_RANK[userRole] >= ROLE_RANK[minRole];
 }
 
-export async function requireUser() {
+// Cached per-request: layouts, nested pages, and actions in the same
+// render/action all resolve the same user without re-querying the DB.
+export const requireUser = cache(async function requireUser() {
   const { userId: clerkUserId } = await auth();
   if (!clerkUserId) redirect("/login");
 
@@ -87,7 +90,7 @@ export async function requireUser() {
     if (raceWinner) return raceWinner;
     throw new Error("Failed to create or find user account.");
   }
-}
+});
 
 export async function requireRole(minRole: Role) {
   const user = await requireUser();
@@ -119,42 +122,29 @@ export async function canAccessProject(
 
 // ============ ORGANIZATION-SCOPED PERMISSIONS (Discord-style roles) ============
 
-export async function getOrganizationMember(
-  userId: string,
-  organizationId: string
-) {
-  const [member] = await db
-    .select({ id: organizationMembers.id })
-    .from(organizationMembers)
-    .where(
-      and(
-        eq(organizationMembers.organizationId, organizationId),
-        eq(organizationMembers.userId, userId)
-      )
-    )
-    .limit(1);
-  return member ?? null;
-}
-
 export async function hasPermission(
   userId: string,
   organizationId: string,
   permission: PermissionKey
 ): Promise<boolean> {
-  const member = await getOrganizationMember(userId, organizationId);
-  if (!member) return false;
-
   const grants = await db
     .select({
       permissionKey: rolePermissions.permissionKey,
       isOwnerRole: roles.isOwnerRole,
     })
-    .from(memberRoles)
+    .from(organizationMembers)
+    .innerJoin(
+      memberRoles,
+      eq(memberRoles.organizationMemberId, organizationMembers.id)
+    )
     .innerJoin(roles, eq(memberRoles.roleId, roles.id))
     .leftJoin(rolePermissions, eq(rolePermissions.roleId, roles.id))
-    .where(eq(memberRoles.organizationMemberId, member.id));
+    .where(
+      and(
+        eq(organizationMembers.organizationId, organizationId),
+        eq(organizationMembers.userId, userId)
+      )
+    );
 
-  return grants.some(
-    (g) => g.isOwnerRole || g.permissionKey === permission
-  );
+  return grants.some((g) => g.isOwnerRole || g.permissionKey === permission);
 }

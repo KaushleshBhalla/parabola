@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { eq, and } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import {
@@ -13,18 +14,11 @@ import { ALL_PERMISSIONS, DEFAULT_ROLE_PERMISSIONS } from "@/lib/permissions";
 import { isRazorpayConfigured } from "@/lib/payments/razorpay";
 import { seedDemoProject, ensureBotUsers } from "@/lib/demo/seed";
 
-/**
- * A user can belong to multiple organizations in the data model, but the
- * app doesn't yet have org-scoped routing (that's a larger follow-up) — for
- * now, every org-aware page just resolves "the" organization as the first
- * one a user joined. Fine for the common single-org case this MVP targets.
- */
-export async function getPrimaryOrganization(userId: string) {
-  const orgs = await getUserOrganizations(userId);
-  return orgs[0] ?? null;
-}
-
-export async function getUserOrganizations(userId: string) {
+// Cached per-request: multiple layouts/pages resolve the same user's orgs
+// without each re-querying the DB.
+export const getUserOrganizations = cache(async function getUserOrganizations(
+  userId: string
+) {
   return db
     .select({
       id: organizations.id,
@@ -39,6 +33,17 @@ export async function getUserOrganizations(userId: string) {
       eq(organizationMembers.organizationId, organizations.id)
     )
     .where(eq(organizationMembers.userId, userId));
+});
+
+/**
+ * A user can belong to multiple organizations in the data model, but the
+ * app doesn't yet have org-scoped routing (that's a larger follow-up) — for
+ * now, every org-aware page just resolves "the" organization as the first
+ * one a user joined. Fine for the common single-org case this MVP targets.
+ */
+export async function getPrimaryOrganization(userId: string) {
+  const orgs = await getUserOrganizations(userId);
+  return orgs[0] ?? null;
 }
 
 /**

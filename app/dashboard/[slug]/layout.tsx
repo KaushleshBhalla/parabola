@@ -1,9 +1,7 @@
 import { notFound } from "next/navigation";
-import { eq } from "drizzle-orm";
-import { db } from "@/lib/db/client";
-import { projects } from "@/lib/db/schema";
 import { requireUser, canAccessProject, hasRole } from "@/lib/auth/rbac";
 import { getPrimaryOrganization } from "@/lib/organizations";
+import { getProjectBySlug } from "@/lib/projects";
 import { ProjectNav } from "./project-nav";
 
 export default async function ProjectLayout({
@@ -14,12 +12,10 @@ export default async function ProjectLayout({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const user = await requireUser();
-  const [project] = await db
-    .select()
-    .from(projects)
-    .where(eq(projects.slug, slug))
-    .limit(1);
+  const [user, project] = await Promise.all([
+    requireUser(),
+    getProjectBySlug(slug),
+  ]);
 
   if (!project) notFound();
   const org = await getPrimaryOrganization(user.id);
