@@ -100,6 +100,17 @@ export async function requireRole(minRole: Role) {
   return user;
 }
 
+// Gates /admin — the site operator's own tooling (granting Pro, etc.), not
+// tied to any organization's Discord-style "Owner" role or to the legacy
+// owner/admin/member/viewer tier above.
+export async function requirePlatformAdmin() {
+  const user = await requireUser();
+  if (!user.isPlatformAdmin) {
+    redirect("/dashboard");
+  }
+  return user;
+}
+
 export async function canAccessProject(
   user: { id: string; role: Role },
   projectId: string

@@ -83,6 +83,11 @@ export const users = pgTable(
     avatarUrl: text("avatar_url"),
     isActive: boolean("is_active").notNull().default(true),
     isBot: boolean("is_bot").notNull().default(false),
+    // Platform-level admin (grants Pro / runs /admin) — deliberately separate
+    // from the legacy owner/admin/member/viewer `role` above and from the
+    // per-organization "Owner" role: those are Discord-style, scoped to a
+    // single org; this is the actual site operator, across every org.
+    isPlatformAdmin: boolean("is_platform_admin").notNull().default(false),
     lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
     createdBy: uuid("created_by"),
@@ -487,6 +492,12 @@ export const accessRequests = pgTable(
     userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
     name: text("name").notNull(),
     email: text("email").notNull(),
+    company: text("company"),
+    jobTitle: text("job_title"),
+    phone: text("phone"),
+    teamSize: text("team_size"),
+    website: text("website"),
+    howHeard: text("how_heard"),
     message: text("message"),
     status: accessRequestStatusEnum("status").notNull().default("pending"),
     createdAt: timestamp("created_at", { withTimezone: true })

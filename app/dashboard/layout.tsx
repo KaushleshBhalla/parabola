@@ -10,6 +10,7 @@ import {
   ScrollText,
   ShieldCheck,
   Sparkles,
+  LayoutDashboard,
 } from "lucide-react";
 import { SignOutButton } from "@clerk/nextjs";
 import { requireUser, hasRole, hasPermission } from "@/lib/auth/rbac";
@@ -120,6 +121,15 @@ export default async function DashboardLayout({
             >
               <ScrollText className="size-4" />
               Activity log
+            </Link>
+          )}
+          {user.isPlatformAdmin && (
+            <Link
+              href="/admin"
+              className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 hover:bg-muted"
+            >
+              <LayoutDashboard className="size-4" />
+              Admin
             </Link>
           )}
           {isDemo && (
