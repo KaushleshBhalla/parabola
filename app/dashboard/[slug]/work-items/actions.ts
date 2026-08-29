@@ -1,11 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, asc, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import {
   workItems,
   workItemComments,
+  workItemAssignees,
   projectCounters,
   notifications,
   users,
@@ -42,7 +43,7 @@ export async function createWorkItem(
   const title = String(formData.get("title") ?? "").trim();
   const description = String(formData.get("description") ?? "").trim();
   const priorityInput = String(formData.get("priority") ?? "none");
-  const assigneeIdInput = String(formData.get("assigneeId") ?? "");
+  const assigneeIds = formData.getAll("assigneeIds").map(String).filter(Boolean);
   const dueDateInput = String(formData.get("dueDate") ?? "").trim();
   const priority: Priority = (PRIORITIES as readonly string[]).includes(
     priorityInput
@@ -53,7 +54,7 @@ export async function createWorkItem(
   if (!title || !projectId) return { error: "Title is required." };
   if (!(await canAccessProject(user, projectId)))
     return { error: "You don't have access to this project." };
-  if (assigneeIdInput && !dueDateInput)
+  if (assigneeIds.length > 0 && !dueDateInput)
     return { error: "A deadline is required when assigning a task." };
 
   const demoState = await getProjectDemoState(projectId);
@@ -76,7 +77,6 @@ export async function createWorkItem(
       .limit(1),
   ]);
 
-  const assigneeId = assigneeIdInput || null;
   const dueDate = dueDateInput || null;
   const position = (top?.position ?? 0) + POSITION_GAP;
 
@@ -88,20 +88,31 @@ export async function createWorkItem(
       title,
       description: description || null,
       priority,
-      assigneeId,
       dueDate,
       position,
       createdBy: user.id,
     })
     .returning();
 
-  if (assigneeId && assigneeId !== user.id) {
-    await db.insert(notifications).values({
-      userId: assigneeId,
-      type: "work_item_assigned",
-      body: `You were assigned "${title}".`,
-      workItemId: workItem.id,
-    });
+  if (assigneeIds.length > 0) {
+    await db.insert(workItemAssignees).values(
+      assigneeIds.map((userId) => ({
+        workItemId: workItem.id,
+        userId,
+        assignedBy: user.id,
+      }))
+    );
+    const notifyIds = assigneeIds.filter((id) => id !== user.id);
+    if (notifyIds.length > 0) {
+      await db.insert(notifications).values(
+        notifyIds.map((userId) => ({
+          userId,
+          type: "work_item_assigned" as const,
+          body: `You were assigned "${title}".`,
+          workItemId: workItem.id,
+        }))
+      );
+    }
   }
 
   if (demoState?.isDemo && demoState.organizationId) {
@@ -114,7 +125,7 @@ export async function createWorkItem(
     action: "work_item.created",
     entityType: "work_item",
     entityId: workItem.id,
-    after: { title, priority, assigneeId },
+    after: { title, priority, assigneeIds },
     searchText: `Created work item "#${workItem.number} ${title}"`,
   });
 
@@ -143,6 +154,7 @@ export async function moveWorkItem(
       title: workItems.title,
       number: workItems.number,
       status: workItems.status,
+      createdBy: workItems.createdBy,
     })
     .from(workItems)
     .where(eq(workItems.id, workItemId))
@@ -155,6 +167,14 @@ export async function moveWorkItem(
     .where(eq(workItems.id, workItemId));
 
   if (item.status !== status) {
+    if (status === "cancelled" && item.createdBy !== user.id) {
+      await db.insert(notifications).values({
+        userId: item.createdBy,
+        type: "work_item_cancelled",
+        body: `"#${item.number} ${item.title}" was cancelled.`,
+        workItemId,
+      });
+    }
     await logActivity({
       actorId: user.id,
       projectId: item.projectId,
@@ -180,7 +200,6 @@ export async function commitDueDate(
   const [item] = await db
     .select({
       projectId: workItems.projectId,
-      assigneeId: workItems.assigneeId,
       title: workItems.title,
       number: workItems.number,
       dueDate: workItems.dueDate,
@@ -190,23 +209,35 @@ export async function commitDueDate(
     .limit(1);
   if (!item || !(await canAccessProject(user, item.projectId))) return;
 
-  const isOwnerEdit = hasRole(user.role, "admin") && user.id !== item.assigneeId;
-  const isSelfCommit = user.id === item.assigneeId;
+  const assignedUserIds = (
+    await db
+      .select({ userId: workItemAssignees.userId })
+      .from(workItemAssignees)
+      .where(eq(workItemAssignees.workItemId, workItemId))
+  ).map((a) => a.userId);
+  const isAssignee = assignedUserIds.includes(user.id);
+  const isOwnerEdit = hasRole(user.role, "admin") && !isAssignee;
+  const isSelfCommit = isAssignee;
   if (!isOwnerEdit && !isSelfCommit) return;
-  if (!dueDate && item.assigneeId) return; // assigned tasks always need a deadline
+  if (!dueDate && assignedUserIds.length > 0) return; // assigned tasks always need a deadline
 
   await db
     .update(workItems)
     .set({ dueDate: dueDate || null, updatedAt: new Date() })
     .where(eq(workItems.id, workItemId));
 
-  if (isOwnerEdit && item.assigneeId) {
-    await db.insert(notifications).values({
-      userId: item.assigneeId,
-      type: "due_date_changed",
-      body: `Owner changed your completion date for "${item.title}" to ${dueDate}.`,
-      workItemId,
-    });
+  if (isOwnerEdit && assignedUserIds.length > 0) {
+    const notifyIds = assignedUserIds.filter((id) => id !== user.id);
+    if (notifyIds.length > 0) {
+      await db.insert(notifications).values(
+        notifyIds.map((userId) => ({
+          userId,
+          type: "due_date_changed" as const,
+          body: `Owner changed your completion date for "${item.title}" to ${dueDate}.`,
+          workItemId,
+        }))
+      );
+    }
   }
 
   await logActivity({
@@ -226,46 +257,69 @@ export async function commitDueDate(
 }
 
 /**
- * Assigns (or reassigns) a work item to any active user. Anyone with access
- * to the project can call this — assignment isn't role-gated. A deadline is
- * mandatory whenever an assignee is set, since an assigned task with no due
- * date can't show up correctly in deadline-tracking views.
+ * Assigns (or reassigns) a work item to any number of active users, including
+ * the actor themselves. Anyone with access to the project can call this —
+ * assignment isn't role-gated. A deadline is mandatory whenever at least one
+ * assignee is set, since an assigned task with no due date can't show up
+ * correctly in deadline-tracking views.
  */
 export async function assignWorkItem(
   workItemId: string,
   slug: string,
-  assigneeId: string | null,
+  assigneeIds: string[],
   dueDate: string | null
 ): Promise<{ error: string } | undefined> {
   const user = await requireUser();
 
   const [item] = await db
-    .select({
-      projectId: workItems.projectId,
-      title: workItems.title,
-      assigneeId: workItems.assigneeId,
-    })
+    .select({ projectId: workItems.projectId, title: workItems.title })
     .from(workItems)
     .where(eq(workItems.id, workItemId))
     .limit(1);
   if (!item) return { error: "Work item not found." };
   if (!(await canAccessProject(user, item.projectId)))
     return { error: "You don't have access to this project." };
-  if (assigneeId && !dueDate)
+  if (assigneeIds.length > 0 && !dueDate)
     return { error: "A deadline is required when assigning a task." };
+
+  const current = await db
+    .select({ userId: workItemAssignees.userId })
+    .from(workItemAssignees)
+    .where(eq(workItemAssignees.workItemId, workItemId));
+  const currentIds = current.map((c) => c.userId);
+  const toAdd = assigneeIds.filter((id) => !currentIds.includes(id));
+  const toRemove = currentIds.filter((id) => !assigneeIds.includes(id));
 
   await db
     .update(workItems)
-    .set({ assigneeId, dueDate, updatedAt: new Date() })
+    .set({ dueDate, updatedAt: new Date() })
     .where(eq(workItems.id, workItemId));
 
-  if (assigneeId && assigneeId !== item.assigneeId && assigneeId !== user.id) {
-    await db.insert(notifications).values({
-      userId: assigneeId,
-      type: "work_item_assigned",
-      body: `You were assigned "${item.title}".`,
-      workItemId,
-    });
+  if (toRemove.length > 0) {
+    await db
+      .delete(workItemAssignees)
+      .where(
+        and(
+          eq(workItemAssignees.workItemId, workItemId),
+          inArray(workItemAssignees.userId, toRemove)
+        )
+      );
+  }
+  if (toAdd.length > 0) {
+    await db.insert(workItemAssignees).values(
+      toAdd.map((userId) => ({ workItemId, userId, assignedBy: user.id }))
+    );
+    const notifyIds = toAdd.filter((id) => id !== user.id);
+    if (notifyIds.length > 0) {
+      await db.insert(notifications).values(
+        notifyIds.map((userId) => ({
+          userId,
+          type: "work_item_assigned" as const,
+          body: `You were assigned "${item.title}".`,
+          workItemId,
+        }))
+      );
+    }
   }
 
   await logActivity({
@@ -274,8 +328,8 @@ export async function assignWorkItem(
     action: "work_item.assigned",
     entityType: "work_item",
     entityId: workItemId,
-    before: { assigneeId: item.assigneeId },
-    after: { assigneeId, dueDate },
+    before: { assigneeIds: currentIds },
+    after: { assigneeIds, dueDate },
     searchText: `Assigned "${item.title}"`,
   });
 
@@ -291,17 +345,12 @@ export async function updateWorkItem(
     title?: string;
     description?: string;
     priority?: string;
-    assigneeId?: string | null;
   }
 ) {
   const user = await requireUser();
 
   const [item] = await db
-    .select({
-      projectId: workItems.projectId,
-      title: workItems.title,
-      assigneeId: workItems.assigneeId,
-    })
+    .select({ projectId: workItems.projectId, title: workItems.title })
     .from(workItems)
     .where(eq(workItems.id, workItemId))
     .limit(1);
@@ -322,25 +371,8 @@ export async function updateWorkItem(
   ) {
     update.priority = fields.priority;
   }
-  if (fields.assigneeId !== undefined) {
-    update.assigneeId = fields.assigneeId || null;
-  }
 
   await db.update(workItems).set(update).where(eq(workItems.id, workItemId));
-
-  if (
-    fields.assigneeId !== undefined &&
-    fields.assigneeId &&
-    fields.assigneeId !== item.assigneeId &&
-    fields.assigneeId !== user.id
-  ) {
-    await db.insert(notifications).values({
-      userId: fields.assigneeId,
-      type: "work_item_assigned",
-      body: `You were assigned "${fields.title ?? item.title}".`,
-      workItemId,
-    });
-  }
 
   await logActivity({
     actorId: user.id,
@@ -367,21 +399,70 @@ export async function getWorkItemDetail(workItemId: string) {
     .limit(1);
   if (!item || !(await canAccessProject(user, item.projectId))) return null;
 
-  const comments = await db
-    .select({
-      id: workItemComments.id,
-      body: workItemComments.body,
-      createdAt: workItemComments.createdAt,
-      authorId: workItemComments.authorId,
-      authorName: users.name,
-      authorDeletedAt: users.deletedAt,
-    })
-    .from(workItemComments)
-    .innerJoin(users, eq(workItemComments.authorId, users.id))
-    .where(eq(workItemComments.workItemId, workItemId))
-    .orderBy(asc(workItemComments.createdAt));
+  const [comments, assignees] = await Promise.all([
+    db
+      .select({
+        id: workItemComments.id,
+        body: workItemComments.body,
+        createdAt: workItemComments.createdAt,
+        authorId: workItemComments.authorId,
+        authorName: users.name,
+        authorDeletedAt: users.deletedAt,
+      })
+      .from(workItemComments)
+      .innerJoin(users, eq(workItemComments.authorId, users.id))
+      .where(eq(workItemComments.workItemId, workItemId))
+      .orderBy(asc(workItemComments.createdAt)),
+    db
+      .select({ id: users.id, name: users.name })
+      .from(workItemAssignees)
+      .innerJoin(users, eq(workItemAssignees.userId, users.id))
+      .where(eq(workItemAssignees.workItemId, workItemId)),
+  ]);
 
-  return { item, comments };
+  return { item, comments, assignees, isCreator: item.createdBy === user.id };
+}
+
+export async function setWorkItemQualityScore(
+  workItemId: string,
+  slug: string,
+  score: number
+): Promise<{ error: string } | undefined> {
+  const user = await requireUser();
+  if (!Number.isInteger(score) || score < 1 || score > 10) {
+    return { error: "Score must be a whole number between 1 and 10." };
+  }
+
+  const [item] = await db
+    .select({
+      projectId: workItems.projectId,
+      title: workItems.title,
+      createdBy: workItems.createdBy,
+    })
+    .from(workItems)
+    .where(eq(workItems.id, workItemId))
+    .limit(1);
+  if (!item || !(await canAccessProject(user, item.projectId))) return;
+  if (item.createdBy !== user.id) {
+    return { error: "Only the creator can score this work item." };
+  }
+
+  await db
+    .update(workItems)
+    .set({ qualityScore: score, updatedAt: new Date() })
+    .where(eq(workItems.id, workItemId));
+
+  await logActivity({
+    actorId: user.id,
+    projectId: item.projectId,
+    action: "work_item.scored",
+    entityType: "work_item",
+    entityId: workItemId,
+    after: { qualityScore: score },
+    searchText: `Scored "${item.title}" ${score}/10`,
+  });
+
+  revalidatePath(`/dashboard/${slug}/work-items`);
 }
 
 export async function addWorkItemComment(

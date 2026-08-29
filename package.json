@@ -10,7 +10,8 @@
     "db:push": "drizzle-kit push",
     "db:rls": "tsx scripts/apply-rls.ts",
     "db:studio": "drizzle-kit studio",
-    "seed:owner": "tsx scripts/seed-owner.ts"
+    "seed:owner": "tsx scripts/seed-owner.ts",
+    "discord:register": "tsx scripts/register-discord-commands.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
@@ -26,6 +27,7 @@
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "date-fns": "^4.4.0",
+    "discord-interactions": "^4.4.0",
     "drizzle-orm": "^0.45.2",
     "lucide-react": "^1.28.0",
     "next": "16.2.12",

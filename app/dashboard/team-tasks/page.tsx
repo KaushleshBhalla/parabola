@@ -1,15 +1,28 @@
 import Link from "next/link";
-import { eq, isNotNull, inArray } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { db } from "@/lib/db/client";
-import { workItems, projects, users, projectMembers } from "@/lib/db/schema";
+import { workItems, workItemAssignees, projects, users, projectMembers } from "@/lib/db/schema";
 import { requireUser, hasRole } from "@/lib/auth/rbac";
 import { getPrimaryOrganization, getOrganizationMemberUsers } from "@/lib/organizations";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { AssignWorkItemDialog } from "@/app/dashboard/[slug]/work-items/assign-work-item-dialog";
 import { DeadlineBadge } from "@/components/deadline-badge";
 import { getDeadlineStatus, deadlineUrgencyRank } from "@/lib/deadline";
+import { formatStatusLabel } from "@/lib/work-items";
+
+type Row = {
+  id: string;
+  number: number;
+  title: string;
+  status: "backlog" | "todo" | "in_progress" | "in_review" | "done" | "cancelled";
+  priority: "none" | "low" | "medium" | "high" | "urgent";
+  dueDate: string | null;
+  projectId: string;
+  projectName: string;
+  projectSlug: string;
+  assignees: { id: string; name: string }[];
+};
 
 export default async function TeamTasksPage() {
   const user = await requireUser();
@@ -30,7 +43,7 @@ export default async function TeamTasksPage() {
 
   const activeUsersPromise = getOrganizationMemberUsers(org?.id ?? null);
 
-  const rows = hasNoMemberships
+  const assignmentRows = hasNoMemberships
     ? []
     : await db
         .select({
@@ -40,23 +53,43 @@ export default async function TeamTasksPage() {
           status: workItems.status,
           priority: workItems.priority,
           dueDate: workItems.dueDate,
-          assigneeId: workItems.assigneeId,
-          assigneeName: users.name,
           projectId: projects.id,
           projectName: projects.name,
           projectSlug: projects.slug,
+          assigneeId: users.id,
+          assigneeName: users.name,
         })
-        .from(workItems)
+        .from(workItemAssignees)
+        .innerJoin(workItems, eq(workItemAssignees.workItemId, workItems.id))
         .innerJoin(projects, eq(workItems.projectId, projects.id))
-        .innerJoin(users, eq(workItems.assigneeId, users.id))
+        .innerJoin(users, eq(workItemAssignees.userId, users.id))
         .where(
-          visibleProjectIds
-            ? inArray(workItems.projectId, visibleProjectIds)
-            : isNotNull(workItems.assigneeId)
+          visibleProjectIds ? inArray(workItems.projectId, visibleProjectIds) : undefined
         );
 
   const activeUsers = await activeUsersPromise;
-  const visibleRows = rows;
+
+  const itemsById = new Map<string, Row>();
+  for (const r of assignmentRows) {
+    const existing = itemsById.get(r.id);
+    if (existing) {
+      existing.assignees.push({ id: r.assigneeId, name: r.assigneeName });
+    } else {
+      itemsById.set(r.id, {
+        id: r.id,
+        number: r.number,
+        title: r.title,
+        status: r.status,
+        priority: r.priority,
+        dueDate: r.dueDate,
+        projectId: r.projectId,
+        projectName: r.projectName,
+        projectSlug: r.projectSlug,
+        assignees: [{ id: r.assigneeId, name: r.assigneeName }],
+      });
+    }
+  }
+  const visibleRows = [...itemsById.values()];
 
   const total = visibleRows.length;
   const overdue = visibleRows.filter(
@@ -69,7 +102,7 @@ export default async function TeamTasksPage() {
 
   const byProject = new Map<
     string,
-    { name: string; slug: string; items: typeof visibleRows }
+    { name: string; slug: string; items: Row[] }
   >();
   for (const row of visibleRows) {
     const group = byProject.get(row.projectId) ?? {
@@ -157,7 +190,7 @@ export default async function TeamTasksPage() {
                         </Link>
                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
                           <Badge variant="outline" className="capitalize">
-                            {item.status.replace("_", " ")}
+                            {formatStatusLabel(item.status)}
                           </Badge>
                           {item.priority !== "none" && (
                             <Badge variant="secondary" className="capitalize">
@@ -173,21 +206,13 @@ export default async function TeamTasksPage() {
                       <AssignWorkItemDialog
                         workItemId={item.id}
                         slug={group.slug}
-                        currentAssigneeId={item.assigneeId}
-                        currentAssigneeName={item.assigneeName}
+                        currentAssignees={item.assignees}
                         currentDueDate={item.dueDate}
                         assignees={activeUsers}
                       >
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-xs text-muted-foreground">
-                            {item.assigneeName}
-                          </span>
-                          <Avatar size="sm">
-                            <AvatarFallback>
-                              {item.assigneeName.slice(0, 2).toUpperCase()}
-                            </AvatarFallback>
-                          </Avatar>
-                        </div>
+                        <span className="text-xs text-muted-foreground">
+                          {item.assignees.map((a) => a.name).join(", ")}
+                        </span>
                       </AssignWorkItemDialog>
                     </div>
                   ))}

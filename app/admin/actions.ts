@@ -88,6 +88,32 @@ export async function markAccessRequestContacted(requestId: string) {
   revalidatePath("/admin");
 }
 
+export async function setOrgProStatus(organizationId: string, isDemo: boolean) {
+  const actor = await requirePlatformAdmin();
+  const [org] = await db
+    .select({ name: organizations.name })
+    .from(organizations)
+    .where(eq(organizations.id, organizationId))
+    .limit(1);
+  if (!org) return;
+
+  await db
+    .update(organizations)
+    .set(isDemo ? { isDemo: true } : { isDemo: false, demoCreationsUsed: 0 })
+    .where(eq(organizations.id, organizationId));
+
+  await logActivity({
+    actorId: actor.id,
+    action: isDemo ? "organization.pro_revoked" : "organization.pro_granted",
+    entityType: "organization",
+    entityId: organizationId,
+    searchText: `${isDemo ? "Revoked Pro access from" : "Granted Pro access to"} "${org.name}"`,
+  });
+
+  revalidatePath("/admin/organizations");
+  revalidatePath(`/admin/organizations/${organizationId}`);
+}
+
 export async function setUserActive(userId: string, isActive: boolean) {
   const actor = await requirePlatformAdmin();
   if (userId === actor.id) return;

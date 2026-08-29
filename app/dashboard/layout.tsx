@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import {
   LayoutGrid,
   LogOut,
@@ -17,10 +17,11 @@ import { requireUser, hasRole, hasPermission } from "@/lib/auth/rbac";
 import { getUserOrganizations } from "@/lib/organizations";
 import { DEMO_CREATION_LIMIT } from "@/lib/demo";
 import { db } from "@/lib/db/client";
-import { notifications, workItems, projects } from "@/lib/db/schema";
+import { notifications, workItems, projects, organizationMembers, users } from "@/lib/db/schema";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { NotificationsBell, type NotificationItem } from "./notifications-bell";
+import { ProChecklist } from "./pro-checklist";
 
 export default async function DashboardLayout({
   children,
@@ -55,6 +56,23 @@ export default async function DashboardLayout({
     userOrgs[0].id,
     "role.manage"
   );
+
+  let isRenamed = false;
+  let hasInvitedTeam = false;
+  if (!isDemo) {
+    isRenamed = !userOrgs[0].name.endsWith("'s Demo Workspace");
+    const otherMembers = await db
+      .select({ id: organizationMembers.id })
+      .from(organizationMembers)
+      .innerJoin(users, eq(organizationMembers.userId, users.id))
+      .where(
+        and(
+          eq(organizationMembers.organizationId, userOrgs[0].id),
+          eq(users.isBot, false)
+        )
+      );
+    hasInvitedTeam = otherMembers.length > 1;
+  }
 
   const notificationItems: NotificationItem[] = notificationRows.map((n) => ({
     id: n.id,
@@ -142,6 +160,14 @@ export default async function DashboardLayout({
             </Link>
           )}
         </nav>
+        {!isDemo && (
+          <ProChecklist
+            organizationId={userOrgs[0].id}
+            orgName={userOrgs[0].name}
+            isRenamed={isRenamed}
+            hasInvitedTeam={hasInvitedTeam}
+          />
+        )}
         <div className="flex items-center gap-2 border-t pt-3">
           <Avatar size="sm">
             <AvatarFallback>

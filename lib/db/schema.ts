@@ -56,6 +56,7 @@ export const attachmentEntityTypeEnum = pgEnum("attachment_entity_type", [
 export const notificationTypeEnum = pgEnum("notification_type", [
   "work_item_assigned",
   "due_date_changed",
+  "work_item_cancelled",
 ]);
 
 export const paymentStatusEnum = pgEnum("payment_status", [
@@ -88,6 +89,8 @@ export const users = pgTable(
     // per-organization "Owner" role: those are Discord-style, scoped to a
     // single org; this is the actual site operator, across every org.
     isPlatformAdmin: boolean("is_platform_admin").notNull().default(false),
+    discordUserId: text("discord_user_id").unique(),
+    discordUsername: text("discord_username"),
     lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
     createdBy: uuid("created_by"),
@@ -121,6 +124,9 @@ export const organizations = pgTable("organizations", {
   currency: text("currency").notNull().default("USD"),
   isDemo: boolean("is_demo").notNull().default(false),
   demoCreationsUsed: integer("demo_creations_used").notNull().default(0),
+  inviteCode: text("invite_code").unique(),
+  discordGuildId: text("discord_guild_id").unique(),
+  discordNotifyChannelId: text("discord_notify_channel_id"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -260,12 +266,15 @@ export const workItems = pgTable(
     description: text("description"),
     status: workItemStatusEnum("status").notNull().default("backlog"),
     priority: workItemPriorityEnum("priority").notNull().default("none"),
+    // Deprecated in favor of work_item_assignees (multi-assignee) below —
+    // kept unused rather than dropped to avoid an unnecessary destructive migration.
     assigneeId: uuid("assignee_id").references(() => users.id),
     createdBy: uuid("created_by")
       .notNull()
       .references(() => users.id),
     position: doublePrecision("position").notNull().default(0),
     dueDate: date("due_date"),
+    qualityScore: integer("quality_score"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -295,6 +304,26 @@ export const workItemLabels = pgTable(
       .references(() => labels.id, { onDelete: "cascade" }),
   },
   (table) => [primaryKey({ columns: [table.workItemId, table.labelId] })]
+);
+
+export const workItemAssignees = pgTable(
+  "work_item_assignees",
+  {
+    workItemId: uuid("work_item_id")
+      .notNull()
+      .references(() => workItems.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    assignedBy: uuid("assigned_by").references(() => users.id),
+    assignedAt: timestamp("assigned_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.workItemId, table.userId] }),
+    index("work_item_assignees_user_idx").on(table.userId),
+  ]
 );
 
 export const workItemComments = pgTable(

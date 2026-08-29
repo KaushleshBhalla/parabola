@@ -13,6 +13,7 @@ import {
 } from "@/lib/db/schema";
 import { DEMO_CREATION_LIMIT } from "@/lib/demo";
 import { Badge } from "@/components/ui/badge";
+import { ProToggleButton } from "../pro-toggle-button";
 import {
   Table,
   TableBody,
@@ -64,17 +65,20 @@ export default async function AdminOrganizationDetailPage({
 
   return (
     <div className="flex flex-col gap-8">
-      <div>
-        <div className="flex items-center gap-2">
-          <h2 className="font-heading text-lg font-semibold">{org.name}</h2>
-          <Badge variant={org.isDemo ? "secondary" : "default"}>
-            {org.isDemo ? "Demo" : "Pro"}
-          </Badge>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <h2 className="font-heading text-lg font-semibold">{org.name}</h2>
+            <Badge variant={org.isDemo ? "secondary" : "default"}>
+              {org.isDemo ? "Demo" : "Pro"}
+            </Badge>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            {org.slug} · created {format(org.createdAt, "MMM d, yyyy")}
+            {org.isDemo && ` · ${org.demoCreationsUsed}/${DEMO_CREATION_LIMIT} demo actions used`}
+          </p>
         </div>
-        <p className="text-sm text-muted-foreground">
-          {org.slug} · created {format(org.createdAt, "MMM d, yyyy")}
-          {org.isDemo && ` · ${org.demoCreationsUsed}/${DEMO_CREATION_LIMIT} demo actions used`}
-        </p>
+        <ProToggleButton organizationId={org.id} isDemo={org.isDemo} />
       </div>
 
       <div>

@@ -22,6 +22,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { AssigneeMultiSelect } from "./assignee-multi-select";
 import { createWorkItem } from "./actions";
 
 export function NewWorkItemDialog({
@@ -34,13 +35,13 @@ export function NewWorkItemDialog({
   assignees: { id: string; name: string }[];
 }) {
   const [open, setOpen] = useState(false);
-  const [assigneeId, setAssigneeId] = useState("");
+  const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
   const [state, action, pending] = useActionState(
     async (_prev: { error: string } | null, formData: FormData) => {
       const result = await createWorkItem(formData);
       if (result?.error) return result;
       setOpen(false);
-      setAssigneeId("");
+      setAssigneeIds([]);
       return null;
     },
     null
@@ -83,27 +84,17 @@ export function NewWorkItemDialog({
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex flex-1 flex-col gap-1.5">
-              <Label htmlFor="assigneeId">Assignee</Label>
-              <Select
-                name="assigneeId"
-                value={assigneeId}
-                onValueChange={(value) => setAssigneeId(value ?? "")}
-              >
-                <SelectTrigger id="assigneeId" className="w-full">
-                  <SelectValue placeholder="Unassigned" />
-                </SelectTrigger>
-                <SelectContent>
-                  {assignees.map((a) => (
-                    <SelectItem key={a.id} value={a.id}>
-                      {a.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
           </div>
-          {assigneeId && (
+          <div className="flex flex-col gap-1.5">
+            <Label>Assignees</Label>
+            <AssigneeMultiSelect
+              name="assigneeIds"
+              assignees={assignees}
+              selected={assigneeIds}
+              onChange={setAssigneeIds}
+            />
+          </div>
+          {assigneeIds.length > 0 && (
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="dueDate">Deadline</Label>
               <Input id="dueDate" name="dueDate" type="date" required />

@@ -1,5 +1,6 @@
 import "server-only";
 import { cache } from "react";
+import { randomBytes } from "node:crypto";
 import { eq, and } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import {
@@ -13,6 +14,67 @@ import {
 import { ALL_PERMISSIONS, DEFAULT_ROLE_PERMISSIONS } from "@/lib/permissions";
 import { isRazorpayConfigured } from "@/lib/payments/razorpay";
 import { seedDemoProject, ensureBotUsers } from "@/lib/demo/seed";
+
+/**
+ * Adds a user to an organization with its default ("Everyone") role, if
+ * they aren't already a member. Shared by the Clerk-invite webhook
+ * (app/api/webhooks/clerk/route.ts) and the shareable-invite-link flow
+ * (app/join/[code]/page.tsx) so both paths join the same way.
+ */
+export async function joinOrganizationById(userId: string, organizationId: string) {
+  const [existingMember] = await db
+    .select({ id: organizationMembers.id })
+    .from(organizationMembers)
+    .where(
+      and(
+        eq(organizationMembers.organizationId, organizationId),
+        eq(organizationMembers.userId, userId)
+      )
+    )
+    .limit(1);
+  if (existingMember) return;
+
+  const [member] = await db
+    .insert(organizationMembers)
+    .values({ organizationId, userId })
+    .returning();
+
+  const [everyoneRole] = await db
+    .select({ id: roles.id })
+    .from(roles)
+    .where(and(eq(roles.organizationId, organizationId), eq(roles.isDefault, true)))
+    .limit(1);
+  if (everyoneRole) {
+    await db
+      .insert(memberRoles)
+      .values({ organizationMemberId: member.id, roleId: everyoneRole.id });
+  }
+}
+
+export async function getOrCreateInviteCode(organizationId: string) {
+  const [org] = await db
+    .select({ inviteCode: organizations.inviteCode })
+    .from(organizations)
+    .where(eq(organizations.id, organizationId))
+    .limit(1);
+  if (org?.inviteCode) return org.inviteCode;
+
+  const code = randomBytes(6).toString("base64url");
+  await db
+    .update(organizations)
+    .set({ inviteCode: code })
+    .where(eq(organizations.id, organizationId));
+  return code;
+}
+
+export async function renameOrganization(organizationId: string, name: string) {
+  const trimmed = name.trim();
+  if (!trimmed) return;
+  await db
+    .update(organizations)
+    .set({ name: trimmed })
+    .where(eq(organizations.id, organizationId));
+}
 
 // Cached per-request: multiple layouts/pages resolve the same user's orgs
 // without each re-querying the DB.

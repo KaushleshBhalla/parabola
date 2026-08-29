@@ -6,13 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   Dialog,
   DialogClose,
   DialogContent,
@@ -21,6 +14,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { AssigneeMultiSelect } from "./assignee-multi-select";
 import { assignWorkItem } from "./actions";
 
 type ActionState = { error: string } | null;
@@ -28,32 +22,27 @@ type ActionState = { error: string } | null;
 export function AssignWorkItemDialog({
   workItemId,
   slug,
-  currentAssigneeId,
-  currentAssigneeName,
+  currentAssignees,
   currentDueDate,
   assignees,
   children,
 }: {
   workItemId: string;
   slug: string;
-  currentAssigneeId: string | null;
-  currentAssigneeName: string | null;
+  currentAssignees: { id: string; name: string }[];
   currentDueDate: string | null;
   assignees: { id: string; name: string }[];
   children?: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
-  const [assigneeId, setAssigneeId] = useState(currentAssigneeId ?? "");
+  const [assigneeIds, setAssigneeIds] = useState<string[]>(
+    currentAssignees.map((a) => a.id)
+  );
   const [state, action, pending] = useActionState<ActionState, FormData>(
     async (_prev, formData) => {
-      const nextAssigneeId = String(formData.get("assigneeId") ?? "") || null;
+      const nextAssigneeIds = formData.getAll("assigneeIds").map(String);
       const dueDate = String(formData.get("dueDate") ?? "").trim() || null;
-      const result = await assignWorkItem(
-        workItemId,
-        slug,
-        nextAssigneeId,
-        dueDate
-      );
+      const result = await assignWorkItem(workItemId, slug, nextAssigneeIds, dueDate);
       if (result?.error) return result;
       setOpen(false);
       return null;
@@ -61,12 +50,17 @@ export function AssignWorkItemDialog({
     null
   );
 
+  const label =
+    currentAssignees.length === 0
+      ? "Assign"
+      : currentAssignees.map((a) => a.name).join(", ");
+
   return (
     <Dialog
       open={open}
       onOpenChange={(next) => {
         setOpen(next);
-        if (next) setAssigneeId(currentAssigneeId ?? "");
+        if (next) setAssigneeIds(currentAssignees.map((a) => a.id));
       }}
     >
       <DialogTrigger
@@ -81,7 +75,7 @@ export function AssignWorkItemDialog({
         {children ?? (
           <>
             <UserPlus />
-            {currentAssigneeName ?? "Assign"}
+            {label}
           </>
         )}
       </DialogTrigger>
@@ -91,25 +85,15 @@ export function AssignWorkItemDialog({
             <DialogTitle>Assign work item</DialogTitle>
           </DialogHeader>
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="assign-assigneeId">Assignee</Label>
-            <Select
-              name="assigneeId"
-              value={assigneeId}
-              onValueChange={(value) => setAssigneeId(value ?? "")}
-            >
-              <SelectTrigger id="assign-assigneeId" className="w-full">
-                <SelectValue placeholder="Unassigned" />
-              </SelectTrigger>
-              <SelectContent>
-                {assignees.map((a) => (
-                  <SelectItem key={a.id} value={a.id}>
-                    {a.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Label>Assignees</Label>
+            <AssigneeMultiSelect
+              name="assigneeIds"
+              assignees={assignees}
+              selected={assigneeIds}
+              onChange={setAssigneeIds}
+            />
           </div>
-          {assigneeId && (
+          {assigneeIds.length > 0 && (
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="assign-dueDate">Deadline</Label>
               <Input

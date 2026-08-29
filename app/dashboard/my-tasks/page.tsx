@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { db } from "@/lib/db/client";
-import { workItems, projects } from "@/lib/db/schema";
+import { workItems, workItemAssignees, projects, users } from "@/lib/db/schema";
 import { requireUser } from "@/lib/auth/rbac";
 import { getPrimaryOrganization, getOrganizationMemberUsers } from "@/lib/organizations";
 import { Badge } from "@/components/ui/badge";
@@ -9,30 +9,57 @@ import { DueDateEditor } from "@/app/dashboard/[slug]/work-items/due-date-editor
 import { AssignWorkItemDialog } from "@/app/dashboard/[slug]/work-items/assign-work-item-dialog";
 import { DeadlineBadge } from "@/components/deadline-badge";
 import { getDeadlineStatus, deadlineUrgencyRank } from "@/lib/deadline";
+import { formatStatusLabel } from "@/lib/work-items";
 
 export default async function MyTasksPage() {
   const user = await requireUser();
   const org = await getPrimaryOrganization(user.id);
 
-  const [rows, activeUsers] = await Promise.all([
+  const [myItemIds, activeUsers] = await Promise.all([
     db
-      .select({
-        id: workItems.id,
-        number: workItems.number,
-        title: workItems.title,
-        status: workItems.status,
-        priority: workItems.priority,
-        dueDate: workItems.dueDate,
-        projectName: projects.name,
-        projectSlug: projects.slug,
-      })
-      .from(workItems)
-      .innerJoin(projects, eq(workItems.projectId, projects.id))
-      .where(eq(workItems.assigneeId, user.id)),
+      .select({ workItemId: workItemAssignees.workItemId })
+      .from(workItemAssignees)
+      .where(eq(workItemAssignees.userId, user.id)),
     getOrganizationMemberUsers(org?.id ?? null),
   ]);
+  const ids = myItemIds.map((r) => r.workItemId);
 
-  const sorted = [...rows].sort((a, b) => {
+  const [items, allAssignees] = ids.length === 0
+    ? [[], []]
+    : await Promise.all([
+        db
+          .select({
+            id: workItems.id,
+            number: workItems.number,
+            title: workItems.title,
+            status: workItems.status,
+            priority: workItems.priority,
+            dueDate: workItems.dueDate,
+            projectName: projects.name,
+            projectSlug: projects.slug,
+          })
+          .from(workItems)
+          .innerJoin(projects, eq(workItems.projectId, projects.id))
+          .where(inArray(workItems.id, ids)),
+        db
+          .select({
+            workItemId: workItemAssignees.workItemId,
+            id: users.id,
+            name: users.name,
+          })
+          .from(workItemAssignees)
+          .innerJoin(users, eq(workItemAssignees.userId, users.id))
+          .where(inArray(workItemAssignees.workItemId, ids)),
+      ]);
+
+  const assigneesByItem = new Map<string, { id: string; name: string }[]>();
+  for (const a of allAssignees) {
+    const list = assigneesByItem.get(a.workItemId) ?? [];
+    list.push({ id: a.id, name: a.name });
+    assigneesByItem.set(a.workItemId, list);
+  }
+
+  const sorted = [...items].sort((a, b) => {
     const rankA = deadlineUrgencyRank(getDeadlineStatus(a.dueDate, a.status));
     const rankB = deadlineUrgencyRank(getDeadlineStatus(b.dueDate, b.status));
     if (rankA !== rankB) return rankA - rankB;
@@ -70,7 +97,7 @@ export default async function MyTasksPage() {
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   <span>{item.projectName}</span>
                   <Badge variant="outline" className="capitalize">
-                    {item.status.replace("_", " ")}
+                    {formatStatusLabel(item.status)}
                   </Badge>
                   {item.priority !== "none" && (
                     <Badge variant="secondary" className="capitalize">
@@ -90,8 +117,7 @@ export default async function MyTasksPage() {
                 <AssignWorkItemDialog
                   workItemId={item.id}
                   slug={item.projectSlug}
-                  currentAssigneeId={user.id}
-                  currentAssigneeName={user.name}
+                  currentAssignees={assigneesByItem.get(item.id) ?? []}
                   currentDueDate={item.dueDate}
                   assignees={activeUsers}
                 />

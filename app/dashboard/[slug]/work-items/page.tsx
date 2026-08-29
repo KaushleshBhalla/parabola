@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db/client";
-import { workItems, users } from "@/lib/db/schema";
+import { workItems, workItemAssignees, users } from "@/lib/db/schema";
 import { requireUser, hasRole } from "@/lib/auth/rbac";
 import { getOrganizationMemberUsers } from "@/lib/organizations";
 import { getProjectBySlug } from "@/lib/projects";
@@ -17,7 +17,7 @@ export default async function WorkItemsPage({
   const [user, project] = await Promise.all([requireUser(), getProjectBySlug(slug)]);
   if (!project) notFound();
 
-  const [rows, activeUsers] = await Promise.all([
+  const [rows, assigneeRows, activeUsers] = await Promise.all([
     db
       .select({
         id: workItems.id,
@@ -25,17 +25,33 @@ export default async function WorkItemsPage({
         title: workItems.title,
         priority: workItems.priority,
         status: workItems.status,
-        assigneeId: workItems.assigneeId,
-        assigneeName: users.name,
-        assigneeDeletedAt: users.deletedAt,
         dueDate: workItems.dueDate,
         position: workItems.position,
+        qualityScore: workItems.qualityScore,
+        createdBy: workItems.createdBy,
       })
       .from(workItems)
-      .leftJoin(users, eq(workItems.assigneeId, users.id))
+      .where(eq(workItems.projectId, project.id)),
+    db
+      .select({
+        workItemId: workItemAssignees.workItemId,
+        id: users.id,
+        name: users.name,
+        deletedAt: users.deletedAt,
+      })
+      .from(workItemAssignees)
+      .innerJoin(users, eq(workItemAssignees.userId, users.id))
+      .innerJoin(workItems, eq(workItemAssignees.workItemId, workItems.id))
       .where(eq(workItems.projectId, project.id)),
     getOrganizationMemberUsers(project.organizationId),
   ]);
+
+  const assigneesByItem = new Map<string, { id: string; name: string }[]>();
+  for (const a of assigneeRows) {
+    const list = assigneesByItem.get(a.workItemId) ?? [];
+    list.push({ id: a.id, name: a.name + (a.deletedAt ? " (deleted)" : "") });
+    assigneesByItem.set(a.workItemId, list);
+  }
 
   const items: BoardItem[] = rows.map((r) => ({
     id: r.id,
@@ -43,12 +59,11 @@ export default async function WorkItemsPage({
     title: r.title,
     priority: r.priority,
     status: r.status,
-    assigneeId: r.assigneeId,
-    assigneeName: r.assigneeName
-      ? r.assigneeName + (r.assigneeDeletedAt ? " (deleted)" : "")
-      : r.assigneeName,
+    assignees: assigneesByItem.get(r.id) ?? [],
     dueDate: r.dueDate,
     position: r.position,
+    qualityScore: r.qualityScore,
+    createdBy: r.createdBy,
   }));
 
   return (

@@ -7,6 +7,7 @@ import {
   projectCounters,
   projectMembers,
   workItems,
+  workItemAssignees,
   workItemComments,
   labels,
   workItemLabels,
@@ -327,13 +328,20 @@ async function insertWorkItems(projectId: string, defaultCreatedBy: string, item
         description: item.description,
         status: item.status,
         priority: item.priority,
-        assigneeId: item.assigneeId,
         dueDate: item.dueDate ?? null,
         createdBy: defaultCreatedBy,
         position: i,
       }))
     )
     .returning();
+
+  await db.insert(workItemAssignees).values(
+    items.map((item, i) => ({
+      workItemId: inserted[i].id,
+      userId: item.assigneeId,
+      assignedBy: defaultCreatedBy,
+    }))
+  );
 
   const labelRows = items.flatMap((item, i) =>
     (item.labelIds ?? []).map((labelId) => ({ workItemId: inserted[i].id, labelId }))

@@ -1,5 +1,4 @@
 import { Sparkles, Rocket } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import {
   Card,
   CardHeader,
@@ -8,6 +7,7 @@ import {
   CardContent,
 } from "@/components/ui/card";
 import { startDemo, requestProAccess } from "./actions";
+import { OnboardingForm } from "./onboarding-form";
 
 export default function OnboardingPage() {
   return (
@@ -31,11 +31,11 @@ export default function OnboardingPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="mt-auto">
-              <form action={startDemo}>
-                <Button type="submit" className="w-full">
-                  Try the demo
-                </Button>
-              </form>
+              <OnboardingForm
+                action={startDemo}
+                label="Try the demo"
+                pendingLabel="Setting up…"
+              />
             </CardContent>
           </Card>
           <Card className="flex flex-col">
@@ -49,11 +49,12 @@ export default function OnboardingPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="mt-auto">
-              <form action={requestProAccess}>
-                <Button type="submit" variant="outline" className="w-full">
-                  Request Pro access
-                </Button>
-              </form>
+              <OnboardingForm
+                action={requestProAccess}
+                label="Request Pro access"
+                pendingLabel="Setting up…"
+                variant="outline"
+              />
             </CardContent>
           </Card>
         </div>
