@@ -1,8 +1,8 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import { users, projectMembers, organizationMembers } from "@/lib/db/schema";
-import { requireRole, hasRole } from "@/lib/auth/rbac";
+import { requireUser, hasRole, hasPermission } from "@/lib/auth/rbac";
 import { getProjectBySlug } from "@/lib/projects";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -14,6 +14,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { MemberToggle } from "./member-toggle";
+import { AddMemberByEmail } from "./add-member-by-email";
 
 export default async function ProjectMembersPage({
   params,
@@ -21,11 +22,13 @@ export default async function ProjectMembersPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const [, project] = await Promise.all([
-    requireRole("admin"),
-    getProjectBySlug(slug),
-  ]);
+  const [user, project] = await Promise.all([requireUser(), getProjectBySlug(slug)]);
   if (!project) notFound();
+
+  const canManage = project.organizationId
+    ? await hasPermission(user.id, project.organizationId, "role.manage")
+    : hasRole(user.role, "admin");
+  if (!canManage) redirect("/dashboard");
 
   const orgScopedUsers = project.organizationId
     ? db
@@ -67,6 +70,8 @@ export default async function ProjectMembersPage({
           Owner and admin always have access. Grant others access below.
         </p>
       </div>
+
+      <AddMemberByEmail projectId={project.id} slug={slug} />
 
       <Table>
         <TableHeader>

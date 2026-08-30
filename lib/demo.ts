@@ -6,7 +6,7 @@ import { organizations, projects } from "@/lib/db/schema";
 export const DEMO_CREATION_LIMIT = 5;
 
 export const DEMO_LIMIT_MESSAGE =
-  "You've hit the demo limit. Request Pro access to keep going.";
+  "You've hit the demo limit. Request organization access to keep going.";
 
 export const DEMO_BLOCKED_MESSAGE = "Not available in demo mode.";
 

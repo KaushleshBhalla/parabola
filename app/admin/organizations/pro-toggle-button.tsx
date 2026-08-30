@@ -19,7 +19,7 @@ export function ProToggleButton({
       disabled={pending}
       onClick={() => startTransition(() => setOrgProStatus(organizationId, !isDemo))}
     >
-      {isDemo ? "Grant Pro" : "Revoke Pro"}
+      {isDemo ? "Grant access" : "Revoke access"}
     </Button>
   );
 }

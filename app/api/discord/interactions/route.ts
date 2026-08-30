@@ -7,22 +7,10 @@ import { resolveOrgByGuild, resolveUserByDiscordId } from "@/lib/discord/resolve
 import {
   type CommandReply,
   handleSetup,
-  handleTaskNew,
   handleTaskList,
   handleTaskView,
   handleTaskAssign,
-  handleTaskMove,
-  handleTaskComment,
-  handleTaskScore,
   handleMyTasks,
-  handleProjects,
-  handleTeamTasks,
-  handleRoadmap,
-  handleActivity,
-  handleRolesList,
-  handleRolesAssign,
-  handleInvite,
-  handleNotifications,
 } from "@/lib/discord/handlers";
 
 const APP_URL = "https://parabolaa.vercel.app";
@@ -113,14 +101,6 @@ async function routeCommand(interaction: {
   switch (commandName) {
     case "task": {
       switch (subcommand) {
-        case "new":
-          return handleTaskNew(user, org, {
-            project: String(args.project),
-            title: String(args.title),
-            assignees: args.assignees ? String(args.assignees) : undefined,
-            priority: args.priority ? String(args.priority) : undefined,
-            due: args.due ? String(args.due) : undefined,
-          });
         case "list": {
           let assigneeId: string | undefined;
           if (args.assignee) {
@@ -143,35 +123,12 @@ async function routeCommand(interaction: {
             mentions: String(args.mentions),
             due: args.due ? String(args.due) : undefined,
           });
-        case "move":
-          return handleTaskMove(user, org, { project: String(args.project), id: Number(args.id), status: String(args.status) });
-        case "comment":
-          return handleTaskComment(user, org, { project: String(args.project), id: Number(args.id), message: String(args.message) });
-        case "score":
-          return handleTaskScore(user, org, { project: String(args.project), id: Number(args.id), score: Number(args.score) });
         default:
           return fail("Unknown /task subcommand.");
       }
     }
     case "mytasks":
       return handleMyTasks(user, org);
-    case "projects":
-      return handleProjects(org);
-    case "teamtasks":
-      return handleTeamTasks(org);
-    case "roadmap":
-      return handleRoadmap(org, { project: args.project ? String(args.project) : undefined });
-    case "activity":
-      return handleActivity(org, { project: args.project ? String(args.project) : undefined });
-    case "roles": {
-      if (subcommand === "list") return handleRolesList(org);
-      if (subcommand === "assign") return handleRolesAssign(user, org, { discordUserId: String(args.user), role: String(args.role) });
-      return fail("Unknown /roles subcommand.");
-    }
-    case "invite":
-      return handleInvite(user, org);
-    case "notifications":
-      return handleNotifications(user);
     default:
       return fail("Unknown command.");
   }

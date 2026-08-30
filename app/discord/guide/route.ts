@@ -83,14 +83,12 @@ const html = `<!doctype html>
   .cmd-syntax .opt { color: var(--text-faint); font-weight: 400; }
   .badge { font-size: 10.5px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; padding: 3px 8px; border-radius: 100px; }
   .badge.perm { background: var(--warning-soft); color: var(--warning); }
-  .badge.creator { background: var(--danger-soft); color: var(--danger); }
   .badge.everyone { background: var(--success-soft); color: var(--success); }
   .cmd-desc { color: var(--text-dim); font-size: 14px; margin: 10px 0 14px; }
   .params { display: grid; grid-template-columns: auto 1fr; gap: 5px 16px; font-size: 13px; margin-bottom: 14px; }
   .params .p-name { font-family: var(--mono); color: var(--text); white-space: nowrap; }
   .params .p-desc { color: var(--text-dim); }
   .params .p-req { color: var(--danger); font-size: 10px; vertical-align: super; }
-  .maps-to { font-size: 12px; color: var(--text-faint); font-family: var(--mono); margin-bottom: 14px; }
   .exchange { background: var(--surface-raised); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
   .msg { display: flex; gap: 10px; align-items: flex-start; }
   .avatar { width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; color: #fff; }
@@ -102,15 +100,9 @@ const html = `<!doctype html>
   .msg-text { font-size: 13.5px; color: var(--text); font-family: var(--mono); }
   .embed { border-left: 3px solid var(--accent); background: var(--surface); border-radius: 6px; padding: 10px 12px; font-size: 13px; color: var(--text-dim); margin-top: 3px; max-width: 460px; }
   .embed strong { color: var(--text); display: block; margin-bottom: 3px; font-size: 13.5px; }
-  .embed .field { display: flex; gap: 6px; margin-top: 5px; font-size: 12px; }
-  .embed .field b { color: var(--text-faint); font-weight: 600; min-width: 62px; }
-  .event-card { display: flex; gap: 14px; padding: 14px 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); margin-bottom: 10px; align-items: flex-start; }
-  .event-icon { width: 30px; height: 30px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
-  .event-title { font-weight: 700; font-size: 13.5px; margin-bottom: 2px; }
-  .event-desc { font-size: 13px; color: var(--text-dim); }
-  .event-trigger { font-family: var(--mono); font-size: 11px; color: var(--text-faint); margin-top: 4px; }
   .trouble-list { margin: 0; padding-left: 18px; color: var(--text-dim); font-size: 13px; display: flex; flex-direction: column; gap: 6px; }
   .trouble-list strong { color: var(--text); }
+  .note { background: var(--surface-raised); border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; font-size: 13px; color: var(--text-dim); margin-top: 6px; }
   footer { margin-top: 60px; padding-top: 24px; border-top: 1px solid var(--border); color: var(--text-faint); font-size: 12.5px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
   @media (max-width: 720px) { .shell { grid-template-columns: 1fr; } .sidebar { display: none; } }
   @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
@@ -133,31 +125,10 @@ const html = `<!doctype html>
     </div>
     <div class="nav-group">
       <span class="nav-label">Tasks</span>
-      <a class="nav-link" href="#task-new"><span class="hash">/</span>task new</a>
       <a class="nav-link" href="#task-list"><span class="hash">/</span>task list</a>
       <a class="nav-link" href="#task-view"><span class="hash">/</span>task view</a>
       <a class="nav-link" href="#task-assign"><span class="hash">/</span>task assign</a>
-      <a class="nav-link" href="#task-move"><span class="hash">/</span>task move</a>
-      <a class="nav-link" href="#task-comment"><span class="hash">/</span>task comment</a>
-      <a class="nav-link" href="#task-score"><span class="hash">/</span>task score</a>
       <a class="nav-link" href="#mytasks"><span class="hash">/</span>mytasks</a>
-    </div>
-    <div class="nav-group">
-      <span class="nav-label">Team &amp; projects</span>
-      <a class="nav-link" href="#projects"><span class="hash">/</span>projects</a>
-      <a class="nav-link" href="#teamtasks"><span class="hash">/</span>teamtasks</a>
-      <a class="nav-link" href="#roadmap"><span class="hash">/</span>roadmap</a>
-      <a class="nav-link" href="#activity"><span class="hash">/</span>activity</a>
-    </div>
-    <div class="nav-group">
-      <span class="nav-label">Organization</span>
-      <a class="nav-link" href="#roles"><span class="hash">/</span>roles</a>
-      <a class="nav-link" href="#invite"><span class="hash">/</span>invite</a>
-      <a class="nav-link" href="#notifications"><span class="hash">/</span>notifications</a>
-    </div>
-    <div class="nav-group">
-      <span class="nav-label">Passive events</span>
-      <a class="nav-link" href="#events"><span class="hash">#</span>Automatic messages</a>
     </div>
   </nav>
 
@@ -165,10 +136,9 @@ const html = `<!doctype html>
     <div class="intro">
       <span class="eyebrow"><span class="dot"></span>VERTEX IS LIVE</span>
       <h1 class="title">Vertex</h1>
-      <p class="lede">Parabola, wherever your team already is. Every command below works right now, in any Discord server that's been set up — creating tasks, assigning work, scoring quality, checking the roadmap, all without leaving chat.</p>
+      <p class="lede">Parabola, wherever your team already is. Vertex keeps things deliberately minimal — check your tasks and reassign work from Discord, do everything else (creating tasks, projects, organizations, roles) on the website.</p>
       <div class="stat-row">
-        <div class="stat"><b>17</b><span>Slash commands</span></div>
-        <div class="stat"><b>4</b><span>Automatic notifications</span></div>
+        <div class="stat"><b>4</b><span>Slash commands</span></div>
         <div class="stat"><b>1:1</b><span>Server ↔ organization</span></div>
       </div>
     </div>
@@ -187,7 +157,7 @@ const html = `<!doctype html>
           <span class="cmd-syntax">/setup <span class="opt">org:&lt;name&gt;</span></span>
           <span class="badge perm">Requires role.manage</span>
         </div>
-        <p class="cmd-desc">Run this once, in the server, as whoever manages roles for your Parabola organization. It links the whole server to that organization — nobody has to specify which org again, ever.</p>
+        <p class="cmd-desc">Run this once, in the server, as whoever manages roles for your Parabola organization. It links the whole server to that organization — nobody has to specify which org again, ever. This links an <em>existing</em> organization; creating a new one only happens on the website.</p>
         <div class="params">
           <span class="p-name">org</span><span class="p-desc">The Parabola organization's name or slug.</span>
         </div>
@@ -237,39 +207,7 @@ const html = `<!doctype html>
 
     <section class="category" id="tasks-heading">
       <div class="category-head"><h2>Tasks</h2></div>
-      <p class="category-desc">The board, without leaving chat. Every <code class="mono">/task</code> command operates on your linked organization's projects.</p>
-
-      <div class="cmd-card" id="task-new">
-        <div class="cmd-head">
-          <span class="cmd-syntax">/task new <span class="opt">project title [assignees] [priority] [due]</span></span>
-          <span class="badge everyone">Project members</span>
-        </div>
-        <p class="cmd-desc">Creates a work item straight into Backlog. Assigning it to someone (yourself included) is optional — but the moment you do, a deadline becomes required, same rule as the board.</p>
-        <div class="params">
-          <span class="p-name">project<span class="p-req">•</span></span><span class="p-desc">Which project.</span>
-          <span class="p-name">title<span class="p-req">•</span></span><span class="p-desc">The task title.</span>
-          <span class="p-name">assignees</span><span class="p-desc">Mention one or more teammates: <code>@nova @kaushlesh</code>.</span>
-          <span class="p-name">priority</span><span class="p-desc">None · Low · Medium · High · Urgent.</span>
-          <span class="p-name">due</span><span class="p-desc">Deadline — required once assignees is set.</span>
-        </div>
-        <div class="exchange">
-          <div class="msg">
-            <div class="avatar user">K</div>
-            <div class="msg-body"><span class="msg-name">Kaushlesh</span><span class="msg-text">/task new project:Bug Tracker title:"Checkout crashes on Safari" assignees:@nova priority:Urgent due:2026-09-02</span></div>
-          </div>
-          <div class="msg">
-            <div class="avatar bot">V</div>
-            <div class="msg-body">
-              <span class="msg-name">Vertex<span class="tag">BOT</span></span>
-              <div class="embed"><strong>#14 Checkout crashes on Safari</strong>Created in Bug Tracker · Backlog
-                <div class="field"><b>Assignee</b>Nova</div>
-                <div class="field"><b>Priority</b>Urgent</div>
-                <div class="field"><b>Due</b>Sep 2</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+      <p class="category-desc">Just checking on work and reassigning it — nothing here creates anything. New tasks, projects, and organizations all happen on the website.</p>
 
       <div class="cmd-card" id="task-list">
         <div class="cmd-head">
@@ -289,7 +227,7 @@ const html = `<!doctype html>
           <span class="cmd-syntax">/task view <span class="opt">project id</span></span>
           <span class="badge everyone">Project members</span>
         </div>
-        <p class="cmd-desc">The full detail view — description, every assignee, priority, due date, quality score if it's been scored, and the last few comments.</p>
+        <p class="cmd-desc">The full detail view — description, every assignee, priority, and due date.</p>
         <div class="params">
           <span class="p-name">project<span class="p-req">•</span></span><span class="p-desc">Which project the task is in.</span>
           <span class="p-name">id<span class="p-req">•</span></span><span class="p-desc">The task number, e.g. <code>14</code>.</span>
@@ -308,30 +246,6 @@ const html = `<!doctype html>
         </div>
       </div>
 
-      <div class="cmd-card" id="task-move">
-        <div class="cmd-head">
-          <span class="cmd-syntax">/task move <span class="opt">project id status</span></span>
-          <span class="badge everyone">Project members</span>
-        </div>
-        <p class="cmd-desc">Changes a task's column. Moving something to Cancelled quietly notifies whoever created it — no extra step needed.</p>
-      </div>
-
-      <div class="cmd-card" id="task-comment">
-        <div class="cmd-head">
-          <span class="cmd-syntax">/task comment <span class="opt">project id message</span></span>
-          <span class="badge everyone">Project members</span>
-        </div>
-        <p class="cmd-desc">Adds a comment to a task's thread — the same thread that shows up when anyone opens it on the board.</p>
-      </div>
-
-      <div class="cmd-card" id="task-score">
-        <div class="cmd-head">
-          <span class="cmd-syntax">/task score <span class="opt">project id score</span></span>
-          <span class="badge creator">Creator only</span>
-        </div>
-        <p class="cmd-desc">Rates a finished task 1–10. Only works once the task has reached Done, and only the person who created it can score it.</p>
-      </div>
-
       <div class="cmd-card" id="mytasks">
         <div class="cmd-head">
           <span class="cmd-syntax">/mytasks</span>
@@ -341,76 +255,7 @@ const html = `<!doctype html>
       </div>
     </section>
 
-    <section class="category" id="team-heading">
-      <div class="category-head"><h2>Team &amp; projects</h2></div>
-      <p class="category-desc">Zoomed-out views — what exists, what's shipping, and what's already happened.</p>
-
-      <div class="cmd-card" id="projects">
-        <div class="cmd-head"><span class="cmd-syntax">/projects</span><span class="badge everyone">Everyone</span></div>
-        <p class="cmd-desc">Lists every project in your linked organization.</p>
-      </div>
-
-      <div class="cmd-card" id="teamtasks">
-        <div class="cmd-head"><span class="cmd-syntax">/teamtasks</span><span class="badge everyone">Everyone</span></div>
-        <p class="cmd-desc">The Team Tasks dashboard as an embed — assigned, overdue, due soon, and done counts, broken down by project.</p>
-      </div>
-
-      <div class="cmd-card" id="roadmap">
-        <div class="cmd-head"><span class="cmd-syntax">/roadmap <span class="opt">[project]</span></span><span class="badge everyone">Everyone</span></div>
-        <p class="cmd-desc">Milestones and their status, grouped the same way as the Roadmap tab.</p>
-      </div>
-
-      <div class="cmd-card" id="activity">
-        <div class="cmd-head"><span class="cmd-syntax">/activity <span class="opt">[project]</span></span><span class="badge everyone">Everyone</span></div>
-        <p class="cmd-desc">The last 10 entries from the activity log — who did what, most recent first.</p>
-      </div>
-    </section>
-
-    <section class="category" id="org-heading">
-      <div class="category-head"><h2>Organization</h2></div>
-      <p class="category-desc">The Discord-style role system, from the server it's inspired by.</p>
-
-      <div class="cmd-card" id="roles">
-        <div class="cmd-head">
-          <span class="cmd-syntax">/roles list</span>
-          <span class="cmd-syntax" style="margin-top:4px">/roles assign <span class="opt">user role</span></span>
-          <span class="badge perm">Assign requires role.manage</span>
-        </div>
-        <p class="cmd-desc">List every role and who holds it, or grant one to a teammate — the same roles from your Roles page, now assignable without opening a browser.</p>
-      </div>
-
-      <div class="cmd-card" id="invite">
-        <div class="cmd-head"><span class="cmd-syntax">/invite</span><span class="badge perm">Requires role.manage</span></div>
-        <p class="cmd-desc">Posts the organization's join link — the same one from the Pro checklist's "Copy invite link."</p>
-      </div>
-
-      <div class="cmd-card" id="notifications">
-        <div class="cmd-head"><span class="cmd-syntax">/notifications</span><span class="badge everyone">Everyone</span></div>
-        <p class="cmd-desc">Your unread notifications — assignments, due-date changes, cancellations — the same feed as the bell icon.</p>
-      </div>
-    </section>
-
-    <section class="category" id="events">
-      <div class="category-head"><h2>Automatic messages</h2></div>
-      <p class="category-desc">Vertex also speaks up on its own, without anyone asking.</p>
-
-      <div class="event-card">
-        <div class="event-icon" style="background:var(--success-soft);color:var(--success)">✓</div>
-        <div><div class="event-title">You were assigned a task</div><div class="event-desc">Sent the moment someone adds you to a task, with its title, priority and due date.</div></div>
-      </div>
-      <div class="event-card">
-        <div class="event-icon" style="background:var(--danger-soft);color:var(--danger)">✕</div>
-        <div><div class="event-title">Your task was cancelled</div><div class="event-desc">Sent to a task's creator the moment anyone moves it to Cancelled.</div></div>
-      </div>
-      <div class="event-card">
-        <div class="event-icon" style="background:var(--warning-soft);color:var(--warning)">⏰</div>
-        <div><div class="event-title">Due date changed</div><div class="event-desc">Sent when someone with permission edits your deadline for you.</div></div>
-      </div>
-      <div class="event-card">
-        <div class="event-icon" style="background:var(--accent-soft);color:var(--accent)">✦</div>
-        <div><div class="event-title">Someone requested Pro access</div><div class="event-desc">Posted to your admin channel whenever the Request Access form is submitted.</div></div>
-      </div>
-    </section>
+    <div class="note">Everything else — creating tasks and projects, requesting an organization, inviting teammates, managing roles, viewing the roadmap and activity log — lives on <a href="https://parabolaa.vercel.app/dashboard">the website</a>.</div>
 
     <footer>
       <span>Vertex — a Parabola integration</span>

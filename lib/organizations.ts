@@ -1,7 +1,7 @@
 import "server-only";
 import { cache } from "react";
 import { randomBytes } from "node:crypto";
-import { eq, and } from "drizzle-orm";
+import { eq, and, asc } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import {
   organizations,
@@ -10,6 +10,7 @@ import {
   organizationMembers,
   memberRoles,
   users,
+  accessRequests,
 } from "@/lib/db/schema";
 import { ALL_PERMISSIONS, DEFAULT_ROLE_PERMISSIONS } from "@/lib/permissions";
 import { isRazorpayConfigured } from "@/lib/payments/razorpay";
@@ -77,7 +78,9 @@ export async function renameOrganization(organizationId: string, name: string) {
 }
 
 // Cached per-request: multiple layouts/pages resolve the same user's orgs
-// without each re-querying the DB.
+// without each re-querying the DB. Real (non-demo) orgs sort first, so once
+// someone has one, it — not their original demo workspace — becomes
+// "primary" everywhere automatically (see getPrimaryOrganization).
 export const getUserOrganizations = cache(async function getUserOrganizations(
   userId: string
 ) {
@@ -94,7 +97,8 @@ export const getUserOrganizations = cache(async function getUserOrganizations(
       organizations,
       eq(organizationMembers.organizationId, organizations.id)
     )
-    .where(eq(organizationMembers.userId, userId));
+    .where(eq(organizationMembers.userId, userId))
+    .orderBy(asc(organizations.isDemo));
 });
 
 /**
@@ -106,6 +110,23 @@ export const getUserOrganizations = cache(async function getUserOrganizations(
 export async function getPrimaryOrganization(userId: string) {
   const orgs = await getUserOrganizations(userId);
   return orgs[0] ?? null;
+}
+
+/**
+ * True once an admin has approved this user's access request and they
+ * haven't already created their own real organization — gates the
+ * "Create your organization" prompt in app/dashboard/layout.tsx.
+ */
+export async function canCreateOwnOrganization(userId: string) {
+  const orgs = await getUserOrganizations(userId);
+  if (orgs.some((o) => !o.isDemo)) return false;
+
+  const [approved] = await db
+    .select({ id: accessRequests.id })
+    .from(accessRequests)
+    .where(and(eq(accessRequests.userId, userId), eq(accessRequests.status, "approved")))
+    .limit(1);
+  return !!approved;
 }
 
 /**

@@ -33,8 +33,8 @@ export function RequestAccessForm({
         <CardHeader>
           <CardTitle className="text-lg">Thanks!</CardTitle>
           <CardDescription>
-            We&apos;ve got your request and will be in touch soon about Pro
-            access.
+            We&apos;ve got your request and will be in touch soon about
+            setting up your organization.
           </CardDescription>
         </CardHeader>
       </Card>
@@ -44,11 +44,11 @@ export function RequestAccessForm({
   return (
     <Card className="w-full max-w-lg">
       <CardHeader>
-        <CardTitle className="text-lg">Request Pro access</CardTitle>
+        <CardTitle className="text-lg">Request organization access</CardTitle>
         <CardDescription>
-          Tell us a bit about your team and we&apos;ll reach out to get you
-          set up. Only name and email are required — everything else helps
-          us prioritize but is optional.
+          Tell us a bit about your team and we&apos;ll reach out to set you
+          up with your own organization. Only name and email are required —
+          everything else helps us prioritize but is optional.
         </CardDescription>
       </CardHeader>
       <form action={action}>

@@ -41,23 +41,28 @@ export default function OnboardingPage() {
           <Card className="flex flex-col">
             <CardHeader>
               <Sparkles className="size-5 text-muted-foreground" />
-              <CardTitle className="text-base">Go Pro</CardTitle>
+              <CardTitle className="text-base">Create an organization</CardTitle>
               <CardDescription>
-                Tell us about your team and we&apos;ll set you up with a real
-                workspace. You&apos;ll still get the demo sandbox to explore
-                in the meantime.
+                New organizations aren&apos;t self-serve yet — tell us about
+                your team and we&apos;ll set one up for you. You&apos;ll
+                still get the demo sandbox to explore in the meantime.
               </CardDescription>
             </CardHeader>
             <CardContent className="mt-auto">
               <OnboardingForm
                 action={requestProAccess}
-                label="Request Pro access"
+                label="Request organization access"
                 pendingLabel="Setting up…"
                 variant="outline"
               />
             </CardContent>
           </Card>
         </div>
+        <p className="text-center text-sm text-muted-foreground">
+          Trying to join a team that&apos;s already on Parabola? Ask your
+          project owner to add you — they can do it directly with your email
+          from their project&apos;s Members page.
+        </p>
       </div>
     </div>
   );

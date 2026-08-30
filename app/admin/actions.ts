@@ -7,6 +7,10 @@ import { accessRequests, organizations, users } from "@/lib/db/schema";
 import { requirePlatformAdmin } from "@/lib/auth/rbac";
 import { logActivity } from "@/lib/activity";
 
+// Approving doesn't touch their existing demo org (that stays exactly as-is,
+// still exploration-only) — it just clears them to self-serve create their
+// own real organization from the dashboard. See
+// app/dashboard/create-organization-actions.ts for that step.
 export async function approveAccessRequest(requestId: string) {
   const actor = await requirePlatformAdmin();
   const [request] = await db
@@ -16,12 +20,6 @@ export async function approveAccessRequest(requestId: string) {
     .limit(1);
   if (!request) return;
 
-  if (request.organizationId) {
-    await db
-      .update(organizations)
-      .set({ isDemo: false })
-      .where(eq(organizations.id, request.organizationId));
-  }
   await db
     .update(accessRequests)
     .set({ status: "approved" })
@@ -32,7 +30,7 @@ export async function approveAccessRequest(requestId: string) {
     action: "access_request.approved",
     entityType: "access_request",
     entityId: requestId,
-    searchText: `Granted Pro access to ${request.name} (${request.email})`,
+    searchText: `Approved ${request.name} (${request.email}) to create their own organization`,
   });
 
   revalidatePath("/admin");

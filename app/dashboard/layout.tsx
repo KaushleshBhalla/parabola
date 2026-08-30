@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { SignOutButton } from "@clerk/nextjs";
 import { requireUser, hasRole, hasPermission } from "@/lib/auth/rbac";
-import { getUserOrganizations } from "@/lib/organizations";
+import { getUserOrganizations, canCreateOwnOrganization } from "@/lib/organizations";
 import { DEMO_CREATION_LIMIT } from "@/lib/demo";
 import { db } from "@/lib/db/client";
 import { notifications, workItems, projects, organizationMembers, users } from "@/lib/db/schema";
@@ -22,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { NotificationsBell, type NotificationItem } from "./notifications-bell";
 import { ProChecklist } from "./pro-checklist";
+import { CreateOrganizationCard } from "./create-organization-card";
 
 export default async function DashboardLayout({
   children,
@@ -56,6 +57,8 @@ export default async function DashboardLayout({
     userOrgs[0].id,
     "role.manage"
   );
+
+  const canCreateOrg = isDemo && (await canCreateOwnOrganization(user.id));
 
   let isRenamed = false;
   let hasInvitedTeam = false;
@@ -156,10 +159,11 @@ export default async function DashboardLayout({
               className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 font-medium text-primary hover:bg-muted"
             >
               <Sparkles className="size-4" />
-              Upgrade to Pro
+              Request organization access
             </Link>
           )}
         </nav>
+        {canCreateOrg && <CreateOrganizationCard />}
         {!isDemo && (
           <ProChecklist
             organizationId={userOrgs[0].id}
@@ -196,13 +200,14 @@ export default async function DashboardLayout({
           <div className="flex items-center justify-between border-b bg-primary/5 px-6 py-2 text-sm">
             <span>
               You&apos;re exploring a demo workspace — up to{" "}
-              {DEMO_CREATION_LIMIT} things to try before you need Pro access.
+              {DEMO_CREATION_LIMIT} things to try. To add teammates, request
+              your own organization.
             </span>
             <Link
               href="/dashboard/request-access"
               className="font-medium text-primary hover:underline"
             >
-              Request Pro access
+              Request organization access
             </Link>
           </div>
         )}

@@ -26,7 +26,6 @@ export default async function AdminRequestsPage() {
       status: accessRequests.status,
       createdAt: accessRequests.createdAt,
       orgName: organizations.name,
-      orgIsDemo: organizations.isDemo,
     })
     .from(accessRequests)
     .leftJoin(organizations, eq(accessRequests.organizationId, organizations.id))
@@ -35,8 +34,9 @@ export default async function AdminRequestsPage() {
   return (
     <div className="flex flex-col gap-4">
       <p className="text-sm text-muted-foreground">
-        {rows.length} request{rows.length === 1 ? "" : "s"} — approving grants
-        Pro access to that workspace immediately.
+        {rows.length} request{rows.length === 1 ? "" : "s"} — approving lets
+        them create their own organization from the dashboard. Their demo
+        workspace is unaffected either way.
       </p>
 
       {rows.length === 0 ? (
@@ -64,7 +64,6 @@ export default async function AdminRequestsPage() {
                   >
                     {r.status}
                   </Badge>
-                  {r.orgIsDemo === false && <Badge>Pro</Badge>}
                 </div>
                 <p className="text-xs text-muted-foreground">
                   {format(r.createdAt, "MMM d, yyyy h:mm a")} ·{" "}
@@ -85,7 +84,7 @@ export default async function AdminRequestsPage() {
               <div className="flex w-36 shrink-0 flex-col gap-1.5">
                 <form action={approveAccessRequest.bind(null, r.id)}>
                   <Button type="submit" size="sm" className="w-full">
-                    Grant Pro
+                    Approve
                   </Button>
                 </form>
                 <form action={markAccessRequestContacted.bind(null, r.id)}>
