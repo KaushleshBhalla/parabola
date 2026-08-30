@@ -16,8 +16,8 @@ export default async function AdminLayout({
           <Link href="/admin" className="hover:underline">
             Access requests
           </Link>
-          <Link href="/admin/organizations" className="hover:underline">
-            Organizations
+          <Link href="/admin/projects" className="hover:underline">
+            Projects
           </Link>
           <Link href="/admin/users" className="hover:underline">
             Users

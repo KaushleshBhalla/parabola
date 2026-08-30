@@ -64,7 +64,7 @@ export default async function LogPage({
       <div>
         <h1 className="font-heading text-xl font-semibold">Activity log</h1>
         <p className="text-sm text-muted-foreground">
-          Every action taken across the organization, most recent first.
+          Every action taken across every project, most recent first.
         </p>
       </div>
 

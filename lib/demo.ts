@@ -1,19 +1,18 @@
 import "server-only";
 import { eq, sql } from "drizzle-orm";
 import { db } from "@/lib/db/client";
-import { organizations, projects } from "@/lib/db/schema";
+import { projects } from "@/lib/db/schema";
 
 export const DEMO_CREATION_LIMIT = 5;
 
 export const DEMO_LIMIT_MESSAGE =
-  "You've hit the demo limit. Request organization access to keep going.";
+  "You've hit the demo limit. Request project access to keep going.";
 
 export const DEMO_BLOCKED_MESSAGE = "Not available in demo mode.";
 
 type ProjectDemoState = {
-  organizationId: string | null;
-  isDemo: boolean | null;
-  demoCreationsUsed: number | null;
+  isDemo: boolean;
+  demoCreationsUsed: number;
 };
 
 export async function getProjectDemoState(
@@ -21,12 +20,10 @@ export async function getProjectDemoState(
 ): Promise<ProjectDemoState | null> {
   const [row] = await db
     .select({
-      organizationId: projects.organizationId,
-      isDemo: organizations.isDemo,
-      demoCreationsUsed: organizations.demoCreationsUsed,
+      isDemo: projects.isDemo,
+      demoCreationsUsed: projects.demoCreationsUsed,
     })
     .from(projects)
-    .leftJoin(organizations, eq(projects.organizationId, organizations.id))
     .where(eq(projects.id, projectId))
     .limit(1);
   return row ?? null;
@@ -35,15 +32,15 @@ export async function getProjectDemoState(
 export function assertDemoCreationAllowed(
   state: ProjectDemoState | null
 ): string | null {
-  if (state?.isDemo && (state.demoCreationsUsed ?? 0) >= DEMO_CREATION_LIMIT) {
+  if (state?.isDemo && state.demoCreationsUsed >= DEMO_CREATION_LIMIT) {
     return DEMO_LIMIT_MESSAGE;
   }
   return null;
 }
 
-export async function incrementDemoUsage(organizationId: string) {
+export async function incrementDemoUsage(projectId: string) {
   await db
-    .update(organizations)
-    .set({ demoCreationsUsed: sql`${organizations.demoCreationsUsed} + 1` })
-    .where(eq(organizations.id, organizationId));
+    .update(projects)
+    .set({ demoCreationsUsed: sql`${projects.demoCreationsUsed} + 1` })
+    .where(eq(projects.id, projectId));
 }

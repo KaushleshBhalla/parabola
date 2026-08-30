@@ -3,14 +3,14 @@
 import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db/client";
-import { accessRequests, organizations, users } from "@/lib/db/schema";
+import { accessRequests, projects, users } from "@/lib/db/schema";
 import { requirePlatformAdmin } from "@/lib/auth/rbac";
 import { logActivity } from "@/lib/activity";
 
-// Approving doesn't touch their existing demo org (that stays exactly as-is,
-// still exploration-only) — it just clears them to self-serve create their
-// own real organization from the dashboard. See
-// app/dashboard/create-organization-actions.ts for that step.
+// Approving doesn't touch their existing demo project (that stays exactly
+// as-is, still exploration-only) — it just clears them to self-serve create
+// their own separate, real project from the dashboard. See
+// app/dashboard/create-own-project-actions.ts for that step.
 export async function approveAccessRequest(requestId: string) {
   const actor = await requirePlatformAdmin();
   const [request] = await db
@@ -30,7 +30,7 @@ export async function approveAccessRequest(requestId: string) {
     action: "access_request.approved",
     entityType: "access_request",
     entityId: requestId,
-    searchText: `Approved ${request.name} (${request.email}) to create their own organization`,
+    searchText: `Approved ${request.name} (${request.email}) to create their own project`,
   });
 
   revalidatePath("/admin");
@@ -86,30 +86,31 @@ export async function markAccessRequestContacted(requestId: string) {
   revalidatePath("/admin");
 }
 
-export async function setOrgProStatus(organizationId: string, isDemo: boolean) {
+export async function setProjectDemoStatus(projectId: string, isDemo: boolean) {
   const actor = await requirePlatformAdmin();
-  const [org] = await db
-    .select({ name: organizations.name })
-    .from(organizations)
-    .where(eq(organizations.id, organizationId))
+  const [project] = await db
+    .select({ name: projects.name })
+    .from(projects)
+    .where(eq(projects.id, projectId))
     .limit(1);
-  if (!org) return;
+  if (!project) return;
 
   await db
-    .update(organizations)
+    .update(projects)
     .set(isDemo ? { isDemo: true } : { isDemo: false, demoCreationsUsed: 0 })
-    .where(eq(organizations.id, organizationId));
+    .where(eq(projects.id, projectId));
 
   await logActivity({
     actorId: actor.id,
-    action: isDemo ? "organization.pro_revoked" : "organization.pro_granted",
-    entityType: "organization",
-    entityId: organizationId,
-    searchText: `${isDemo ? "Revoked Pro access from" : "Granted Pro access to"} "${org.name}"`,
+    projectId,
+    action: isDemo ? "project.pro_revoked" : "project.pro_granted",
+    entityType: "project",
+    entityId: projectId,
+    searchText: `${isDemo ? "Marked demo again" : "Marked as a real project"}: "${project.name}"`,
   });
 
-  revalidatePath("/admin/organizations");
-  revalidatePath(`/admin/organizations/${organizationId}`);
+  revalidatePath("/admin/projects");
+  revalidatePath(`/admin/projects/${projectId}`);
 }
 
 export async function setUserActive(userId: string, isActive: boolean) {

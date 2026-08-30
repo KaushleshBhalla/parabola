@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import { workItems, workItemAssignees, users } from "@/lib/db/schema";
 import { requireUser, hasRole } from "@/lib/auth/rbac";
-import { getOrganizationMemberUsers } from "@/lib/organizations";
+import { getProjectMemberUsers } from "@/lib/project-access";
 import { getProjectBySlug } from "@/lib/projects";
 import { WorkItemsBoard, type BoardItem } from "./board";
 import { NewWorkItemDialog } from "./new-work-item-dialog";
@@ -43,7 +43,7 @@ export default async function WorkItemsPage({
       .innerJoin(users, eq(workItemAssignees.userId, users.id))
       .innerJoin(workItems, eq(workItemAssignees.workItemId, workItems.id))
       .where(eq(workItems.projectId, project.id)),
-    getOrganizationMemberUsers(project.organizationId),
+    getProjectMemberUsers(project.id),
   ]);
 
   const assigneesByItem = new Map<string, { id: string; name: string }[]>();

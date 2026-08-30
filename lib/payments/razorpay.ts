@@ -6,10 +6,10 @@ export function isRazorpayConfigured(): boolean {
 }
 
 /**
- * Creates a Razorpay order for an organization's creation fee. Not yet wired
- * to the real API — org creation currently auto-marks itself paid when
- * Razorpay isn't configured (see app/onboarding/actions.ts), so this only
- * throws once real payment enforcement is turned on without keys present.
+ * Creates a Razorpay order for a project's creation fee. Not yet wired to
+ * the real API or called from anywhere — project creation is currently free
+ * (see lib/project-access.ts), so this only throws once real payment
+ * enforcement is turned on without keys present.
  */
 export async function createOrder(amountCents: number, currency: string) {
   if (!isRazorpayConfigured()) {

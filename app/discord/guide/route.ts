@@ -127,8 +127,12 @@ const html = `<!doctype html>
       <span class="nav-label">Tasks</span>
       <a class="nav-link" href="#task-list"><span class="hash">/</span>task list</a>
       <a class="nav-link" href="#task-view"><span class="hash">/</span>task view</a>
-      <a class="nav-link" href="#task-assign"><span class="hash">/</span>task assign</a>
+      <a class="nav-link" href="#assign"><span class="hash">/</span>assign</a>
       <a class="nav-link" href="#mytasks"><span class="hash">/</span>mytasks</a>
+    </div>
+    <div class="nav-group">
+      <span class="nav-label">In Discord</span>
+      <a class="nav-link" href="#guide-cmd"><span class="hash">/</span>guide</a>
     </div>
   </nav>
 
@@ -136,10 +140,10 @@ const html = `<!doctype html>
     <div class="intro">
       <span class="eyebrow"><span class="dot"></span>VERTEX IS LIVE</span>
       <h1 class="title">Vertex</h1>
-      <p class="lede">Parabola, wherever your team already is. Vertex keeps things deliberately minimal — check your tasks and reassign work from Discord, do everything else (creating tasks, projects, organizations, roles) on the website.</p>
+      <p class="lede">Parabola, wherever your team already is. Vertex keeps things deliberately minimal — check tasks, create and assign new ones, from Discord. Everything else (projects, members, roadmap) lives on the website.</p>
       <div class="stat-row">
-        <div class="stat"><b>4</b><span>Slash commands</span></div>
-        <div class="stat"><b>1:1</b><span>Server ↔ organization</span></div>
+        <div class="stat"><b>6</b><span>Slash commands</span></div>
+        <div class="stat"><b>1:1</b><span>Server ↔ project</span></div>
       </div>
     </div>
 
@@ -154,12 +158,12 @@ const html = `<!doctype html>
 
       <div class="cmd-card" id="setup">
         <div class="cmd-head">
-          <span class="cmd-syntax">/setup <span class="opt">org:&lt;name&gt;</span></span>
-          <span class="badge perm">Requires role.manage</span>
+          <span class="cmd-syntax">/setup <span class="opt">project:&lt;name&gt;</span></span>
+          <span class="badge perm">Requires project admin</span>
         </div>
-        <p class="cmd-desc">Run this once, in the server, as whoever manages roles for your Parabola organization. It links the whole server to that organization — nobody has to specify which org again, ever. This links an <em>existing</em> organization; creating a new one only happens on the website.</p>
+        <p class="cmd-desc">Run this once, in the server, as an admin on the Parabola project you want linked. It links the whole server to that one project — <code>/task</code> and <code>/assign</code> default to it from then on. Start typing and pick from the projects you belong to; this links an <em>existing</em> project, creating a new one only happens on the website.</p>
         <div class="params">
-          <span class="p-name">org</span><span class="p-desc">The Parabola organization's name or slug.</span>
+          <span class="p-name">project</span><span class="p-desc">Pick from the projects you're a member of (autocomplete).</span>
         </div>
       </div>
 
@@ -207,16 +211,15 @@ const html = `<!doctype html>
 
     <section class="category" id="tasks-heading">
       <div class="category-head"><h2>Tasks</h2></div>
-      <p class="category-desc">Just checking on work and reassigning it — nothing here creates anything. New tasks, projects, and organizations all happen on the website.</p>
+      <p class="category-desc"><code>/task</code> reads this server's linked project. <code>/assign</code> creates a task and assigns it — the only way to add work from Discord.</p>
 
       <div class="cmd-card" id="task-list">
         <div class="cmd-head">
-          <span class="cmd-syntax">/task list <span class="opt">[project] [status] [assignee]</span></span>
+          <span class="cmd-syntax">/task list <span class="opt">[status] [assignee]</span></span>
           <span class="badge everyone">Project members</span>
         </div>
-        <p class="cmd-desc">A filtered slice of the board as a compact list — narrow it to one project, one status column, or one person's queue.</p>
+        <p class="cmd-desc">A filtered slice of this server's linked project as a compact list — narrow it to one status column or one person's queue.</p>
         <div class="params">
-          <span class="p-name">project</span><span class="p-desc">Limit to one project.</span>
           <span class="p-name">status</span><span class="p-desc">Backlog · Todo · In Progress · Testing Pending · Done · Cancelled.</span>
           <span class="p-name">assignee</span><span class="p-desc">Limit to one teammate's tasks.</span>
         </div>
@@ -224,25 +227,27 @@ const html = `<!doctype html>
 
       <div class="cmd-card" id="task-view">
         <div class="cmd-head">
-          <span class="cmd-syntax">/task view <span class="opt">project id</span></span>
+          <span class="cmd-syntax">/task view <span class="opt">id</span></span>
           <span class="badge everyone">Project members</span>
         </div>
         <p class="cmd-desc">The full detail view — description, every assignee, priority, and due date.</p>
         <div class="params">
-          <span class="p-name">project<span class="p-req">•</span></span><span class="p-desc">Which project the task is in.</span>
           <span class="p-name">id<span class="p-req">•</span></span><span class="p-desc">The task number, e.g. <code>14</code>.</span>
         </div>
       </div>
 
-      <div class="cmd-card" id="task-assign">
+      <div class="cmd-card" id="assign">
         <div class="cmd-head">
-          <span class="cmd-syntax">/task assign <span class="opt">project id mentions [due]</span></span>
+          <span class="cmd-syntax">/assign <span class="opt">mentions work [project] [priority] [deadline]</span></span>
           <span class="badge everyone">Project members</span>
         </div>
-        <p class="cmd-desc">Sets who's on a task — replaces the current assignee list with whoever you mention, so re-running it is how you add or remove someone. You can assign it to yourself.</p>
+        <p class="cmd-desc">Creates a new task and assigns it to whoever you mention. Everything but the mentions and the work itself is optional — pick a project (autocomplete over every project you're in; defaults to this server's linked one), a priority, and a deadline if you have them.</p>
         <div class="params">
           <span class="p-name">mentions<span class="p-req">•</span></span><span class="p-desc">One or more @mentions.</span>
-          <span class="p-name">due</span><span class="p-desc">Required whenever the list is non-empty.</span>
+          <span class="p-name">work<span class="p-req">•</span></span><span class="p-desc">What the task is — becomes its title.</span>
+          <span class="p-name">project</span><span class="p-desc">Which project. Defaults to this server's linked project.</span>
+          <span class="p-name">priority</span><span class="p-desc">Low · Medium · High.</span>
+          <span class="p-name">deadline</span><span class="p-desc">YYYY-MM-DD, optional.</span>
         </div>
       </div>
 
@@ -251,11 +256,19 @@ const html = `<!doctype html>
           <span class="cmd-syntax">/mytasks</span>
           <span class="badge everyone">Everyone</span>
         </div>
-        <p class="cmd-desc">Your own queue, sorted the same way the My Tasks page sorts it — overdue first, then due soon, then everything else.</p>
+        <p class="cmd-desc">Your own queue across every project you're in, sorted the same way the My Tasks page sorts it — overdue first, then due soon, then everything else.</p>
+      </div>
+
+      <div class="cmd-card" id="guide-cmd">
+        <div class="cmd-head">
+          <span class="cmd-syntax">/guide</span>
+          <span class="badge everyone">Everyone</span>
+        </div>
+        <p class="cmd-desc">Posts this same command list right in Discord, with a link back here for the full detail.</p>
       </div>
     </section>
 
-    <div class="note">Everything else — creating tasks and projects, requesting an organization, inviting teammates, managing roles, viewing the roadmap and activity log — lives on <a href="https://parabolaa.vercel.app/dashboard">the website</a>.</div>
+    <div class="note">Everything else — creating projects, requesting access, inviting teammates, changing a task's status, viewing the roadmap and activity log — lives on <a href="https://parabolaa.vercel.app/dashboard">the website</a>.</div>
 
     <footer>
       <span>Vertex — a Parabola integration</span>

@@ -35,8 +35,8 @@ export async function postMessage(
     })
     .returning();
 
-  if (demoState?.isDemo && demoState.organizationId) {
-    await incrementDemoUsage(demoState.organizationId);
+  if (demoState?.isDemo) {
+    await incrementDemoUsage(projectId);
   }
 
   await logActivity({

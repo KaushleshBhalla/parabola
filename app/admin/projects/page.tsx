@@ -2,7 +2,7 @@ import Link from "next/link";
 import { desc, eq, sql } from "drizzle-orm";
 import { format } from "date-fns";
 import { db } from "@/lib/db/client";
-import { organizations, organizationMembers } from "@/lib/db/schema";
+import { projects, projectMembers } from "@/lib/db/schema";
 import { DEMO_CREATION_LIMIT } from "@/lib/demo";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -14,29 +14,26 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-export default async function AdminOrganizationsPage() {
+export default async function AdminProjectsPage() {
   const rows = await db
     .select({
-      id: organizations.id,
-      name: organizations.name,
-      slug: organizations.slug,
-      isDemo: organizations.isDemo,
-      demoCreationsUsed: organizations.demoCreationsUsed,
-      createdAt: organizations.createdAt,
-      memberCount: sql<number>`count(${organizationMembers.id})`.mapWith(Number),
+      id: projects.id,
+      name: projects.name,
+      slug: projects.slug,
+      isDemo: projects.isDemo,
+      demoCreationsUsed: projects.demoCreationsUsed,
+      createdAt: projects.createdAt,
+      memberCount: sql<number>`count(${projectMembers.userId})`.mapWith(Number),
     })
-    .from(organizations)
-    .leftJoin(
-      organizationMembers,
-      eq(organizationMembers.organizationId, organizations.id)
-    )
-    .groupBy(organizations.id)
-    .orderBy(desc(organizations.createdAt));
+    .from(projects)
+    .leftJoin(projectMembers, eq(projectMembers.projectId, projects.id))
+    .groupBy(projects.id)
+    .orderBy(desc(projects.createdAt));
 
   return (
     <div className="flex flex-col gap-4">
       <p className="text-sm text-muted-foreground">
-        {rows.length} organization{rows.length === 1 ? "" : "s"}.
+        {rows.length} project{rows.length === 1 ? "" : "s"}.
       </p>
       <Table>
         <TableHeader>
@@ -50,25 +47,25 @@ export default async function AdminOrganizationsPage() {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {rows.map((o) => (
-            <TableRow key={o.id}>
+          {rows.map((p) => (
+            <TableRow key={p.id}>
               <TableCell className="font-medium">
-                <Link href={`/admin/organizations/${o.id}`} className="hover:underline">
-                  {o.name}
+                <Link href={`/admin/projects/${p.id}`} className="hover:underline">
+                  {p.name}
                 </Link>
               </TableCell>
-              <TableCell className="text-muted-foreground">{o.slug}</TableCell>
+              <TableCell className="text-muted-foreground">{p.slug}</TableCell>
               <TableCell>
-                <Badge variant={o.isDemo ? "secondary" : "default"}>
-                  {o.isDemo ? "Demo" : "Pro"}
+                <Badge variant={p.isDemo ? "secondary" : "default"}>
+                  {p.isDemo ? "Demo" : "Real"}
                 </Badge>
               </TableCell>
               <TableCell className="text-muted-foreground">
-                {o.isDemo ? `${o.demoCreationsUsed}/${DEMO_CREATION_LIMIT}` : "—"}
+                {p.isDemo ? `${p.demoCreationsUsed}/${DEMO_CREATION_LIMIT}` : "—"}
               </TableCell>
-              <TableCell>{o.memberCount}</TableCell>
+              <TableCell>{p.memberCount}</TableCell>
               <TableCell className="text-muted-foreground">
-                {format(o.createdAt, "MMM d, yyyy")}
+                {format(p.createdAt, "MMM d, yyyy")}
               </TableCell>
             </TableRow>
           ))}

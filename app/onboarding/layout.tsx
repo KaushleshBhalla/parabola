@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
+import { eq } from "drizzle-orm";
+import { db } from "@/lib/db/client";
+import { projectMembers } from "@/lib/db/schema";
 import { requireUser } from "@/lib/auth/rbac";
-import { getUserOrganizations } from "@/lib/organizations";
 
 export default async function OnboardingLayout({
   children,
@@ -8,7 +10,11 @@ export default async function OnboardingLayout({
   children: React.ReactNode;
 }) {
   const user = await requireUser();
-  const userOrgs = await getUserOrganizations(user.id);
-  if (userOrgs.length > 0) redirect("/dashboard");
+  const [existing] = await db
+    .select({ projectId: projectMembers.projectId })
+    .from(projectMembers)
+    .where(eq(projectMembers.userId, user.id))
+    .limit(1);
+  if (existing) redirect("/dashboard");
   return children;
 }

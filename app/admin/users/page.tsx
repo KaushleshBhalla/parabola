@@ -1,7 +1,7 @@
 import { desc, eq } from "drizzle-orm";
 import { format } from "date-fns";
 import { db } from "@/lib/db/client";
-import { users, organizationMembers, organizations } from "@/lib/db/schema";
+import { users, projectMembers, projects } from "@/lib/db/schema";
 import { requirePlatformAdmin } from "@/lib/auth/rbac";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -21,32 +21,32 @@ export default async function AdminUsersPage() {
     db.select().from(users).orderBy(desc(users.createdAt)),
     db
       .select({
-        userId: organizationMembers.userId,
-        orgName: organizations.name,
+        userId: projectMembers.userId,
+        projectName: projects.name,
       })
-      .from(organizationMembers)
-      .innerJoin(organizations, eq(organizationMembers.organizationId, organizations.id)),
+      .from(projectMembers)
+      .innerJoin(projects, eq(projectMembers.projectId, projects.id)),
   ]);
 
-  const orgsByUser = new Map<string, string[]>();
+  const projectsByUser = new Map<string, string[]>();
   for (const m of memberships) {
-    const list = orgsByUser.get(m.userId) ?? [];
-    list.push(m.orgName);
-    orgsByUser.set(m.userId, list);
+    const list = projectsByUser.get(m.userId) ?? [];
+    list.push(m.projectName);
+    projectsByUser.set(m.userId, list);
   }
 
   return (
     <div className="flex flex-col gap-4">
       <p className="text-sm text-muted-foreground">
         {allUsers.length} user{allUsers.length === 1 ? "" : "s"} across every
-        organization on the platform.
+        project on the platform.
       </p>
       <Table>
         <TableHeader>
           <TableRow>
             <TableHead>Name</TableHead>
             <TableHead>Email</TableHead>
-            <TableHead>Organizations</TableHead>
+            <TableHead>Projects</TableHead>
             <TableHead>Status</TableHead>
             <TableHead>Joined</TableHead>
             <TableHead />
@@ -68,7 +68,7 @@ export default async function AdminUsersPage() {
               </TableCell>
               <TableCell className="text-muted-foreground">{u.email}</TableCell>
               <TableCell className="text-muted-foreground">
-                {(orgsByUser.get(u.id) ?? []).join(", ") || "—"}
+                {(projectsByUser.get(u.id) ?? []).join(", ") || "—"}
               </TableCell>
               <TableCell>
                 <Badge variant={u.isActive ? "default" : "outline"}>

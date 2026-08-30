@@ -25,9 +25,9 @@ export default function OnboardingPage() {
               <Rocket className="size-5 text-muted-foreground" />
               <CardTitle className="text-base">Explore the demo</CardTitle>
               <CardDescription>
-                You&apos;ll be exploring demo mode: a private sandbox pre-loaded
-                with mock projects. Try every feature freely — no payment
-                needed.
+                You&apos;ll be exploring demo mode: a private sandbox project
+                pre-loaded with a guided tour. Try every feature freely — no
+                payment needed.
               </CardDescription>
             </CardHeader>
             <CardContent className="mt-auto">
@@ -41,17 +41,17 @@ export default function OnboardingPage() {
           <Card className="flex flex-col">
             <CardHeader>
               <Sparkles className="size-5 text-muted-foreground" />
-              <CardTitle className="text-base">Create an organization</CardTitle>
+              <CardTitle className="text-base">Create a project</CardTitle>
               <CardDescription>
-                New organizations aren&apos;t self-serve yet — tell us about
-                your team and we&apos;ll set one up for you. You&apos;ll
-                still get the demo sandbox to explore in the meantime.
+                New projects aren&apos;t self-serve yet — tell us about your
+                team and we&apos;ll set you up. You&apos;ll still get the
+                demo sandbox to explore in the meantime.
               </CardDescription>
             </CardHeader>
             <CardContent className="mt-auto">
               <OnboardingForm
                 action={requestProAccess}
-                label="Request organization access"
+                label="Request project access"
                 pendingLabel="Setting up…"
                 variant="outline"
               />

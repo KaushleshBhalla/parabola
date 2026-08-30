@@ -3,13 +3,19 @@ import { verifyKey } from "discord-interactions";
 import { createLinkToken } from "@/lib/discord/link-token";
 import { sendDirectMessage } from "@/lib/discord/api";
 import { buildEmbed, DANGER_COLOR } from "@/lib/discord/embeds";
-import { resolveOrgByGuild, resolveUserByDiscordId } from "@/lib/discord/resolve";
+import {
+  resolveProjectByGuild,
+  resolveUserByDiscordId,
+  resolveUserProject,
+  listUserProjects,
+} from "@/lib/discord/resolve";
+import { canAccessProject } from "@/lib/auth/rbac";
 import {
   type CommandReply,
   handleSetup,
   handleTaskList,
   handleTaskView,
-  handleTaskAssign,
+  handleAssign,
   handleMyTasks,
 } from "@/lib/discord/handlers";
 
@@ -19,7 +25,13 @@ function fail(message: string): CommandReply {
   return { embeds: [buildEmbed({ title: "Couldn't do that", description: message, color: DANGER_COLOR })], ephemeral: true };
 }
 
-type RawOption = { name: string; type: number; value?: string | number | boolean; options?: RawOption[] };
+type RawOption = {
+  name: string;
+  type: number;
+  value?: string | number | boolean;
+  focused?: boolean;
+  options?: RawOption[];
+};
 
 function flattenOptions(options: RawOption[] = []) {
   let subcommand: string | undefined;
@@ -35,6 +47,51 @@ function flattenOptions(options: RawOption[] = []) {
     }
   }
   return { subcommand, args };
+}
+
+function findFocusedOption(options: RawOption[] = []): RawOption | null {
+  for (const opt of options) {
+    if (opt.focused) return opt;
+    if (opt.options) {
+      const nested = findFocusedOption(opt.options);
+      if (nested) return nested;
+    }
+  }
+  return null;
+}
+
+function guideEmbed() {
+  return buildEmbed({
+    title: "Parabola commands",
+    description: [
+      "**/link** — connect your Discord account to your Parabola login (DMs you a link).",
+      "**/setup project:<name>** — link this server to one of your projects (project admins only). `/task` and `/assign` then default to it.",
+      "**/task list [status] [assignee]** — list work items in this server's linked project.",
+      "**/task view id:<#>** — show one task's full detail.",
+      "**/assign mentions:<@people> work:<title> [project] [priority] [deadline]** — create a task and assign it. Project defaults to this server's linked one; priority and deadline are optional.",
+      "**/mytasks** — your assigned tasks across every project you're in.",
+      "",
+      `[Full guide with screenshots](${APP_URL}/discord/guide)`,
+    ].join("\n"),
+  });
+}
+
+async function routeAutocomplete(interaction: {
+  member?: { user?: { id: string } };
+  user?: { id: string };
+  data: { options?: RawOption[] };
+}) {
+  const discordUserId = interaction.member?.user?.id ?? interaction.user?.id;
+  const focused = findFocusedOption(interaction.data.options);
+  if (!discordUserId || !focused || focused.name !== "project") {
+    return { choices: [] };
+  }
+  const user = await resolveUserByDiscordId(discordUserId);
+  if (!user) return { choices: [] };
+
+  const query = typeof focused.value === "string" ? focused.value : "";
+  const matches = await listUserProjects(user.id, query || undefined);
+  return { choices: matches.map((p) => ({ name: p.name, value: p.id })) };
 }
 
 async function routeCommand(interaction: {
@@ -55,16 +112,7 @@ async function routeCommand(interaction: {
   const { subcommand, args } = flattenOptions(interaction.data.options);
 
   if (commandName === "guide") {
-    const target = args.for === "admin" ? "#admin-setup" : args.for === "user" ? "#getting-started" : "";
-    return {
-      embeds: [
-        buildEmbed({
-          title: "Vertex Guide",
-          description: `[Open the full guide](${APP_URL}/discord/guide${target}) — every command, what it does, and how to set things up.`,
-        }),
-      ],
-      ephemeral: true,
-    };
+    return { embeds: [guideEmbed()], ephemeral: true };
   }
 
   if (commandName === "link") {
@@ -89,49 +137,62 @@ async function routeCommand(interaction: {
     if (!guildId) return fail("This only works inside a server.");
     const discordUser = discordUserId ? await resolveUserByDiscordId(discordUserId) : null;
     if (!discordUser) return fail("Link your account first with `/link`.");
-    return handleSetup(discordUser, guildId, String(args.org ?? ""));
+    const project = await resolveUserProject(discordUser.id, String(args.project ?? ""));
+    if (!project) return fail(`No project called "${args.project}" that you belong to.`);
+    return handleSetup(discordUser, guildId, project);
   }
 
-  if (!guildId) return fail("This command only works inside a server.");
-  const org = await resolveOrgByGuild(guildId);
-  if (!org) return fail("This server isn't linked to a Parabola organization yet — an admin should run `/setup`.");
   const user = discordUserId ? await resolveUserByDiscordId(discordUserId) : null;
   if (!user) return fail("Link your account first with `/link`.");
 
-  switch (commandName) {
-    case "task": {
-      switch (subcommand) {
-        case "list": {
-          let assigneeId: string | undefined;
-          if (args.assignee) {
-            const assigneeUser = await resolveUserByDiscordId(String(args.assignee));
-            if (!assigneeUser) return fail("That person hasn't run `/link` yet.");
-            assigneeId = assigneeUser.id;
-          }
-          return handleTaskList(org, {
-            project: args.project ? String(args.project) : undefined,
-            status: args.status ? String(args.status) : undefined,
-            assignee: assigneeId,
-          });
-        }
-        case "view":
-          return handleTaskView(org, { project: String(args.project), id: Number(args.id) });
-        case "assign":
-          return handleTaskAssign(user, org, {
-            project: String(args.project),
-            id: Number(args.id),
-            mentions: String(args.mentions),
-            due: args.due ? String(args.due) : undefined,
-          });
-        default:
-          return fail("Unknown /task subcommand.");
-      }
-    }
-    case "mytasks":
-      return handleMyTasks(user, org);
-    default:
-      return fail("Unknown command.");
+  if (commandName === "mytasks") {
+    return handleMyTasks(user);
   }
+
+  if (commandName === "assign") {
+    let project = null;
+    if (args.project) {
+      project = await resolveUserProject(user.id, String(args.project));
+      if (!project) return fail(`No project called "${args.project}" that you belong to.`);
+    } else if (guildId) {
+      project = await resolveProjectByGuild(guildId);
+    }
+    if (!project) return fail("Pass a `project`, or run `/setup` to link this server to one first.");
+    if (!(await canAccessProject(user, project.id))) return fail("You don't have access to that project.");
+    return handleAssign(user, project, {
+      mentions: String(args.mentions ?? ""),
+      work: String(args.work ?? ""),
+      priority: args.priority ? String(args.priority) : undefined,
+      deadline: args.deadline ? String(args.deadline) : undefined,
+    });
+  }
+
+  if (commandName === "task") {
+    if (!guildId) return fail("This command only works inside a server.");
+    const project = await resolveProjectByGuild(guildId);
+    if (!project) return fail("This server isn't linked to a project yet — an admin should run `/setup`.");
+
+    switch (subcommand) {
+      case "list": {
+        let assigneeId: string | undefined;
+        if (args.assignee) {
+          const assigneeUser = await resolveUserByDiscordId(String(args.assignee));
+          if (!assigneeUser) return fail("That person hasn't run `/link` yet.");
+          assigneeId = assigneeUser.id;
+        }
+        return handleTaskList(project, {
+          status: args.status ? String(args.status) : undefined,
+          assignee: assigneeId,
+        });
+      }
+      case "view":
+        return handleTaskView(project, { id: Number(args.id) });
+      default:
+        return fail("Unknown /task subcommand.");
+    }
+  }
+
+  return fail("Unknown command.");
 }
 
 export async function POST(req: NextRequest) {
@@ -152,6 +213,16 @@ export async function POST(req: NextRequest) {
 
   if (interaction.type === 1) {
     return NextResponse.json({ type: 1 });
+  }
+
+  if (interaction.type === 4) {
+    try {
+      const result = await routeAutocomplete(interaction);
+      return NextResponse.json({ type: 8, data: result });
+    } catch (err) {
+      console.error("Discord autocomplete error:", err);
+      return NextResponse.json({ type: 8, data: { choices: [] } });
+    }
   }
 
   if (interaction.type === 2) {
@@ -176,3 +247,4 @@ export async function POST(req: NextRequest) {
 
   return new NextResponse("Unhandled interaction type", { status: 400 });
 }
+

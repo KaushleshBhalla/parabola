@@ -1,9 +1,8 @@
 import Link from "next/link";
 import { eq, inArray } from "drizzle-orm";
 import { db } from "@/lib/db/client";
-import { workItems, workItemAssignees, projects, users } from "@/lib/db/schema";
+import { workItems, workItemAssignees, projects, projectMembers, users } from "@/lib/db/schema";
 import { requireUser } from "@/lib/auth/rbac";
-import { getPrimaryOrganization, getOrganizationMemberUsers } from "@/lib/organizations";
 import { Badge } from "@/components/ui/badge";
 import { DueDateEditor } from "@/app/dashboard/[slug]/work-items/due-date-editor";
 import { AssignWorkItemDialog } from "@/app/dashboard/[slug]/work-items/assign-work-item-dialog";
@@ -13,50 +12,61 @@ import { formatStatusLabel } from "@/lib/work-items";
 
 export default async function MyTasksPage() {
   const user = await requireUser();
-  const org = await getPrimaryOrganization(user.id);
 
-  const [myItemIds, activeUsers] = await Promise.all([
-    db
+  const myItemIds = (
+    await db
       .select({ workItemId: workItemAssignees.workItemId })
       .from(workItemAssignees)
-      .where(eq(workItemAssignees.userId, user.id)),
-    getOrganizationMemberUsers(org?.id ?? null),
-  ]);
-  const ids = myItemIds.map((r) => r.workItemId);
+      .where(eq(workItemAssignees.userId, user.id))
+  ).map((r) => r.workItemId);
 
-  const [items, allAssignees] = ids.length === 0
-    ? [[], []]
-    : await Promise.all([
-        db
-          .select({
-            id: workItems.id,
-            number: workItems.number,
-            title: workItems.title,
-            status: workItems.status,
-            priority: workItems.priority,
-            dueDate: workItems.dueDate,
-            projectName: projects.name,
-            projectSlug: projects.slug,
-          })
-          .from(workItems)
-          .innerJoin(projects, eq(workItems.projectId, projects.id))
-          .where(inArray(workItems.id, ids)),
-        db
-          .select({
-            workItemId: workItemAssignees.workItemId,
-            id: users.id,
-            name: users.name,
-          })
-          .from(workItemAssignees)
-          .innerJoin(users, eq(workItemAssignees.userId, users.id))
-          .where(inArray(workItemAssignees.workItemId, ids)),
-      ]);
+  const [items, allAssignees, projectMemberRows] =
+    myItemIds.length === 0
+      ? [[], [], []]
+      : await Promise.all([
+          db
+            .select({
+              id: workItems.id,
+              number: workItems.number,
+              title: workItems.title,
+              status: workItems.status,
+              priority: workItems.priority,
+              dueDate: workItems.dueDate,
+              projectId: workItems.projectId,
+              projectName: projects.name,
+              projectSlug: projects.slug,
+            })
+            .from(workItems)
+            .innerJoin(projects, eq(workItems.projectId, projects.id))
+            .where(inArray(workItems.id, myItemIds)),
+          db
+            .select({
+              workItemId: workItemAssignees.workItemId,
+              id: users.id,
+              name: users.name,
+            })
+            .from(workItemAssignees)
+            .innerJoin(users, eq(workItemAssignees.userId, users.id))
+            .where(inArray(workItemAssignees.workItemId, myItemIds)),
+          db
+            .select({ projectId: projectMembers.projectId, id: users.id, name: users.name })
+            .from(projectMembers)
+            .innerJoin(users, eq(projectMembers.userId, users.id))
+            .where(eq(users.isActive, true)),
+        ]);
 
   const assigneesByItem = new Map<string, { id: string; name: string }[]>();
   for (const a of allAssignees) {
     const list = assigneesByItem.get(a.workItemId) ?? [];
     list.push({ id: a.id, name: a.name });
     assigneesByItem.set(a.workItemId, list);
+  }
+
+  const membersByProject = new Map<string, { id: string; name: string }[]>();
+  for (const m of projectMemberRows) {
+    const list = membersByProject.get(m.projectId) ?? [];
+    list.push({ id: m.id, name: m.name });
+    membersByProject.set(m.projectId, list);
   }
 
   const sorted = [...items].sort((a, b) => {
@@ -119,7 +129,7 @@ export default async function MyTasksPage() {
                   slug={item.projectSlug}
                   currentAssignees={assigneesByItem.get(item.id) ?? []}
                   currentDueDate={item.dueDate}
-                  assignees={activeUsers}
+                  assignees={membersByProject.get(item.projectId) ?? []}
                 />
               </div>
             </div>

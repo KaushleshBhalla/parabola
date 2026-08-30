@@ -3,11 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db/client";
-import { projects, projectCounters } from "@/lib/db/schema";
-import { requireRole } from "@/lib/auth/rbac";
-import { getPrimaryOrganization } from "@/lib/organizations";
+import { projects, projectCounters, projectMembers } from "@/lib/db/schema";
+import { requireUser } from "@/lib/auth/rbac";
+import { hasRealProject, canCreateOwnProject } from "@/lib/project-access";
 import { logActivity } from "@/lib/activity";
-import { DEMO_LIMIT_MESSAGE } from "@/lib/demo";
 
 function slugify(name: string) {
   return name
@@ -20,13 +19,14 @@ function slugify(name: string) {
 export async function createProject(
   formData: FormData
 ): Promise<{ error: string } | undefined> {
-  const user = await requireRole("admin");
+  const user = await requireUser();
   const name = String(formData.get("name") ?? "").trim();
   const description = String(formData.get("description") ?? "").trim();
   if (!name) return;
 
-  const org = await getPrimaryOrganization(user.id);
-  if (org?.isDemo) return { error: DEMO_LIMIT_MESSAGE };
+  if (!(await hasRealProject(user.id)) && !(await canCreateOwnProject(user.id))) {
+    return { error: "Request project access before creating a project." };
+  }
 
   const baseSlug = slugify(name) || "project";
   let slug = baseSlug;
@@ -47,12 +47,12 @@ export async function createProject(
       name,
       slug,
       description: description || null,
-      organizationId: org?.id,
       createdBy: user.id,
     })
     .returning();
 
   await db.insert(projectCounters).values({ projectId: project.id });
+  await db.insert(projectMembers).values({ projectId: project.id, userId: user.id, isAdmin: true });
 
   await logActivity({
     actorId: user.id,

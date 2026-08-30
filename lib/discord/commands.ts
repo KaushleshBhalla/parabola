@@ -2,9 +2,9 @@
 // both by scripts/register-discord-commands.ts (to register them with
 // Discord) and as a reference for the option shapes handlers.ts expects.
 //
-// Deliberately minimal: Discord is for day-to-day visibility and reassigning
-// work, nothing more. Creating organizations/projects, roles, invites, and
-// changing a task's status all stay website-only.
+// Deliberately minimal: Discord is for day-to-day visibility, creating a
+// task and assigning it, and reassigning work — nothing more. Creating
+// projects, roles, and invites all stay website-only.
 
 const STATUS_CHOICES = [
   { name: "Backlog", value: "backlog" },
@@ -15,23 +15,17 @@ const STATUS_CHOICES = [
   { name: "Cancelled", value: "cancelled" },
 ];
 
+const PRIORITY_CHOICES = [
+  { name: "Low", value: "low" },
+  { name: "Medium", value: "medium" },
+  { name: "High", value: "high" },
+];
+
 // Option type numbers per Discord's API: 3 STRING, 4 INTEGER, 6 USER.
 export const discordCommands = [
   {
     name: "guide",
-    description: "Get a link to the full Vertex guide.",
-    options: [
-      {
-        name: "for",
-        description: "Which part of the guide",
-        type: 3,
-        required: false,
-        choices: [
-          { name: "Admin setup", value: "admin" },
-          { name: "Everyone (commands)", value: "user" },
-        ],
-      },
-    ],
+    description: "Show every Parabola command and what it does.",
   },
   {
     name: "link",
@@ -39,21 +33,26 @@ export const discordCommands = [
   },
   {
     name: "setup",
-    description: "Link this server to a Parabola organization (requires role.manage).",
+    description: "Link this server to one of your Parabola projects.",
     options: [
-      { name: "org", description: "The organization name or slug", type: 3, required: true },
+      {
+        name: "project",
+        description: "Which project to link this server to",
+        type: 3,
+        required: true,
+        autocomplete: true,
+      },
     ],
   },
   {
     name: "task",
-    description: "View or reassign work items.",
+    description: "View work items in this server's linked project.",
     options: [
       {
         name: "list",
         description: "List work items.",
         type: 1,
         options: [
-          { name: "project", description: "Project name", type: 3, required: false },
           { name: "status", description: "Filter by status", type: 3, required: false, choices: STATUS_CHOICES },
           { name: "assignee", description: "Filter by assignee", type: 6, required: false },
         ],
@@ -62,23 +61,26 @@ export const discordCommands = [
         name: "view",
         description: "Show a work item's full detail.",
         type: 1,
-        options: [
-          { name: "project", description: "Project name", type: 3, required: true },
-          { name: "id", description: "Task number", type: 4, required: true },
-        ],
-      },
-      {
-        name: "assign",
-        description: "Set who's assigned to a task.",
-        type: 1,
-        options: [
-          { name: "project", description: "Project name", type: 3, required: true },
-          { name: "id", description: "Task number", type: 4, required: true },
-          { name: "mentions", description: "Mention everyone who should be assigned", type: 3, required: true },
-          { name: "due", description: "Deadline, YYYY-MM-DD", type: 3, required: false },
-        ],
+        options: [{ name: "id", description: "Task number", type: 4, required: true }],
       },
     ],
   },
-  { name: "mytasks", description: "Your assigned tasks, most urgent first." },
+  {
+    name: "assign",
+    description: "Create a task and assign it to one or more people.",
+    options: [
+      { name: "mentions", description: "Mention everyone who should be assigned", type: 3, required: true },
+      { name: "work", description: "What the task is", type: 3, required: true },
+      {
+        name: "project",
+        description: "Which project (defaults to this server's linked project)",
+        type: 3,
+        required: false,
+        autocomplete: true,
+      },
+      { name: "priority", description: "Priority", type: 3, required: false, choices: PRIORITY_CHOICES },
+      { name: "deadline", description: "Deadline, YYYY-MM-DD", type: 3, required: false },
+    ],
+  },
+  { name: "mytasks", description: "Your assigned tasks across every project, most urgent first." },
 ];

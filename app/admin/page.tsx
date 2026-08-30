@@ -1,7 +1,7 @@
-import { desc, eq } from "drizzle-orm";
+import { desc } from "drizzle-orm";
 import { format } from "date-fns";
 import { db } from "@/lib/db/client";
-import { accessRequests, organizations } from "@/lib/db/schema";
+import { accessRequests } from "@/lib/db/schema";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,18 +25,16 @@ export default async function AdminRequestsPage() {
       message: accessRequests.message,
       status: accessRequests.status,
       createdAt: accessRequests.createdAt,
-      orgName: organizations.name,
     })
     .from(accessRequests)
-    .leftJoin(organizations, eq(accessRequests.organizationId, organizations.id))
     .orderBy(desc(accessRequests.createdAt));
 
   return (
     <div className="flex flex-col gap-4">
       <p className="text-sm text-muted-foreground">
         {rows.length} request{rows.length === 1 ? "" : "s"} — approving lets
-        them create their own organization from the dashboard. Their demo
-        workspace is unaffected either way.
+        them create their own project from the dashboard. Their demo
+        project is unaffected either way.
       </p>
 
       {rows.length === 0 ? (
@@ -66,8 +64,7 @@ export default async function AdminRequestsPage() {
                   </Badge>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  {format(r.createdAt, "MMM d, yyyy h:mm a")} ·{" "}
-                  {r.orgName ?? "no workspace"}
+                  {format(r.createdAt, "MMM d, yyyy h:mm a")}
                 </p>
                 {(r.company || r.jobTitle || r.phone || r.teamSize || r.website || r.howHeard) && (
                   <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm sm:grid-cols-3">

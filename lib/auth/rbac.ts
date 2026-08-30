@@ -4,15 +4,7 @@ import { redirect } from "next/navigation";
 import { and, eq } from "drizzle-orm";
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { db } from "@/lib/db/client";
-import {
-  users,
-  projectMembers,
-  organizationMembers,
-  memberRoles,
-  roles,
-  rolePermissions,
-} from "@/lib/db/schema";
-import type { PermissionKey } from "@/lib/permissions";
+import { users, projectMembers } from "@/lib/db/schema";
 
 const ROLE_RANK = { viewer: 0, member: 1, admin: 2, owner: 3 } as const;
 export type Role = keyof typeof ROLE_RANK;
@@ -129,33 +121,4 @@ export async function canAccessProject(
     .limit(1);
 
   return !!row;
-}
-
-// ============ ORGANIZATION-SCOPED PERMISSIONS (Discord-style roles) ============
-
-export async function hasPermission(
-  userId: string,
-  organizationId: string,
-  permission: PermissionKey
-): Promise<boolean> {
-  const grants = await db
-    .select({
-      permissionKey: rolePermissions.permissionKey,
-      isOwnerRole: roles.isOwnerRole,
-    })
-    .from(organizationMembers)
-    .innerJoin(
-      memberRoles,
-      eq(memberRoles.organizationMemberId, organizationMembers.id)
-    )
-    .innerJoin(roles, eq(memberRoles.roleId, roles.id))
-    .leftJoin(rolePermissions, eq(rolePermissions.roleId, roles.id))
-    .where(
-      and(
-        eq(organizationMembers.organizationId, organizationId),
-        eq(organizationMembers.userId, userId)
-      )
-    );
-
-  return grants.some((g) => g.isOwnerRole || g.permissionKey === permission);
 }

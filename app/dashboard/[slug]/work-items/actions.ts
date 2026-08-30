@@ -115,8 +115,8 @@ export async function createWorkItem(
     }
   }
 
-  if (demoState?.isDemo && demoState.organizationId) {
-    await incrementDemoUsage(demoState.organizationId);
+  if (demoState?.isDemo) {
+    await incrementDemoUsage(projectId);
   }
 
   await logActivity({
@@ -491,8 +491,8 @@ export async function addWorkItemComment(
     body: trimmed,
   });
 
-  if (demoState?.isDemo && demoState.organizationId) {
-    await incrementDemoUsage(demoState.organizationId);
+  if (demoState?.isDemo) {
+    await incrementDemoUsage(item.projectId);
   }
 
   await logActivity({

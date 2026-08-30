@@ -3,7 +3,6 @@
 import { db } from "@/lib/db/client";
 import { accessRequests } from "@/lib/db/schema";
 import { requireUser } from "@/lib/auth/rbac";
-import { getPrimaryOrganization } from "@/lib/organizations";
 import { logActivity } from "@/lib/activity";
 
 export type RequestAccessState = { error: string } | { success: true } | null;
@@ -25,10 +24,7 @@ export async function submitAccessRequest(
 
   if (!name || !email) return { error: "Name and email are required." };
 
-  const org = await getPrimaryOrganization(user.id);
-
   await db.insert(accessRequests).values({
-    organizationId: org?.id ?? null,
     userId: user.id,
     name,
     email,
@@ -45,7 +41,7 @@ export async function submitAccessRequest(
     actorId: user.id,
     action: "access_request.submitted",
     entityType: "access_request",
-    searchText: `${name} (${email}) requested Pro access`,
+    searchText: `${name} (${email}) requested project access`,
   });
 
   return { success: true };

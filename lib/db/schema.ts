@@ -214,10 +214,16 @@ export const projects = pgTable("projects", {
   slug: text("slug").notNull().unique(),
   description: text("description"),
   color: text("color"),
+  // Deprecated — organizations are no longer the tenant boundary; projects
+  // are independent. Left in place (unused) rather than dropped.
   organizationId: uuid("organization_id").references(() => organizations.id, {
     onDelete: "cascade",
   }),
   createdBy: uuid("created_by").references(() => users.id),
+  isDemo: boolean("is_demo").notNull().default(false),
+  demoCreationsUsed: integer("demo_creations_used").notNull().default(0),
+  discordGuildId: text("discord_guild_id").unique(),
+  inviteCode: text("invite_code").unique(),
   archivedAt: timestamp("archived_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
@@ -474,6 +480,7 @@ export const projectMembers = pgTable(
     userId: uuid("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
+    isAdmin: boolean("is_admin").notNull().default(false),
     addedAt: timestamp("added_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

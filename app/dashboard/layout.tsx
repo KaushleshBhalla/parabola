@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { and, desc, eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import {
   LayoutGrid,
   LogOut,
@@ -8,21 +8,15 @@ import {
   ListChecks,
   Users,
   ScrollText,
-  ShieldCheck,
-  Sparkles,
   LayoutDashboard,
 } from "lucide-react";
 import { SignOutButton } from "@clerk/nextjs";
-import { requireUser, hasRole, hasPermission } from "@/lib/auth/rbac";
-import { getUserOrganizations, canCreateOwnOrganization } from "@/lib/organizations";
-import { DEMO_CREATION_LIMIT } from "@/lib/demo";
+import { requireUser, hasRole } from "@/lib/auth/rbac";
 import { db } from "@/lib/db/client";
-import { notifications, workItems, projects, organizationMembers, users } from "@/lib/db/schema";
+import { notifications, workItems, projects, projectMembers } from "@/lib/db/schema";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { NotificationsBell, type NotificationItem } from "./notifications-bell";
-import { ProChecklist } from "./pro-checklist";
-import { CreateOrganizationCard } from "./create-organization-card";
 
 export default async function DashboardLayout({
   children,
@@ -31,8 +25,12 @@ export default async function DashboardLayout({
 }) {
   const user = await requireUser();
 
-  const [userOrgs, notificationRows] = await Promise.all([
-    getUserOrganizations(user.id),
+  const [myProjects, notificationRows] = await Promise.all([
+    db
+      .select({ id: projectMembers.projectId })
+      .from(projectMembers)
+      .where(eq(projectMembers.userId, user.id))
+      .limit(1),
     db
       .select({
         id: notifications.id,
@@ -48,34 +46,10 @@ export default async function DashboardLayout({
       .orderBy(desc(notifications.createdAt))
       .limit(15),
   ]);
-  if (userOrgs.length === 0) redirect("/onboarding");
+  if (myProjects.length === 0) redirect("/onboarding");
+
   const canManageTeam = hasRole(user.role, "admin");
   const isOwner = hasRole(user.role, "owner");
-  const isDemo = userOrgs[0]?.isDemo ?? false;
-  const canManageRoles = await hasPermission(
-    user.id,
-    userOrgs[0].id,
-    "role.manage"
-  );
-
-  const canCreateOrg = isDemo && (await canCreateOwnOrganization(user.id));
-
-  let isRenamed = false;
-  let hasInvitedTeam = false;
-  if (!isDemo) {
-    isRenamed = !userOrgs[0].name.endsWith("'s Demo Workspace");
-    const otherMembers = await db
-      .select({ id: organizationMembers.id })
-      .from(organizationMembers)
-      .innerJoin(users, eq(organizationMembers.userId, users.id))
-      .where(
-        and(
-          eq(organizationMembers.organizationId, userOrgs[0].id),
-          eq(users.isBot, false)
-        )
-      );
-    hasInvitedTeam = otherMembers.length > 1;
-  }
 
   const notificationItems: NotificationItem[] = notificationRows.map((n) => ({
     id: n.id,
@@ -126,15 +100,6 @@ export default async function DashboardLayout({
               Team
             </Link>
           )}
-          {canManageRoles && (
-            <Link
-              href="/dashboard/roles"
-              className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 hover:bg-muted"
-            >
-              <ShieldCheck className="size-4" />
-              Roles
-            </Link>
-          )}
           {isOwner && (
             <Link
               href="/dashboard/log"
@@ -153,25 +118,7 @@ export default async function DashboardLayout({
               Admin
             </Link>
           )}
-          {isDemo && (
-            <Link
-              href="/dashboard/request-access"
-              className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 font-medium text-primary hover:bg-muted"
-            >
-              <Sparkles className="size-4" />
-              Request organization access
-            </Link>
-          )}
         </nav>
-        {canCreateOrg && <CreateOrganizationCard />}
-        {!isDemo && (
-          <ProChecklist
-            organizationId={userOrgs[0].id}
-            orgName={userOrgs[0].name}
-            isRenamed={isRenamed}
-            hasInvitedTeam={hasInvitedTeam}
-          />
-        )}
         <div className="flex items-center gap-2 border-t pt-3">
           <Avatar size="sm">
             <AvatarFallback>
@@ -195,24 +142,7 @@ export default async function DashboardLayout({
           </SignOutButton>
         </div>
       </aside>
-      <main className="flex flex-1 flex-col overflow-y-auto">
-        {isDemo && (
-          <div className="flex items-center justify-between border-b bg-primary/5 px-6 py-2 text-sm">
-            <span>
-              You&apos;re exploring a demo workspace — up to{" "}
-              {DEMO_CREATION_LIMIT} things to try. To add teammates, request
-              your own organization.
-            </span>
-            <Link
-              href="/dashboard/request-access"
-              className="font-medium text-primary hover:underline"
-            >
-              Request organization access
-            </Link>
-          </div>
-        )}
-        <div className="flex-1">{children}</div>
-      </main>
+      <main className="flex flex-1 flex-col overflow-y-auto">{children}</main>
     </div>
   );
 }

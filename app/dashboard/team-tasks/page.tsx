@@ -3,7 +3,6 @@ import { eq, inArray } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import { workItems, workItemAssignees, projects, users, projectMembers } from "@/lib/db/schema";
 import { requireUser, hasRole } from "@/lib/auth/rbac";
-import { getPrimaryOrganization, getOrganizationMemberUsers } from "@/lib/organizations";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { AssignWorkItemDialog } from "@/app/dashboard/[slug]/work-items/assign-work-item-dialog";
@@ -27,7 +26,6 @@ type Row = {
 export default async function TeamTasksPage() {
   const user = await requireUser();
   const isPrivileged = hasRole(user.role, "admin");
-  const org = await getPrimaryOrganization(user.id);
 
   let visibleProjectIds: string[] | null = null;
   if (!isPrivileged) {
@@ -40,8 +38,6 @@ export default async function TeamTasksPage() {
 
   const hasNoMemberships =
     visibleProjectIds !== null && visibleProjectIds.length === 0;
-
-  const activeUsersPromise = getOrganizationMemberUsers(org?.id ?? null);
 
   const assignmentRows = hasNoMemberships
     ? []
@@ -67,8 +63,6 @@ export default async function TeamTasksPage() {
           visibleProjectIds ? inArray(workItems.projectId, visibleProjectIds) : undefined
         );
 
-  const activeUsers = await activeUsersPromise;
-
   const itemsById = new Map<string, Row>();
   for (const r of assignmentRows) {
     const existing = itemsById.get(r.id);
@@ -90,6 +84,25 @@ export default async function TeamTasksPage() {
     }
   }
   const visibleRows = [...itemsById.values()];
+
+  // Each item can belong to a different, independent project now, so the
+  // assign dialog needs that project's own member list — not one shared pool.
+  const distinctProjectIds = [...new Set(visibleRows.map((r) => r.projectId))];
+  const memberRows = distinctProjectIds.length
+    ? await db
+        .select({ projectId: projectMembers.projectId, id: users.id, name: users.name })
+        .from(projectMembers)
+        .innerJoin(users, eq(projectMembers.userId, users.id))
+        .where(
+          inArray(projectMembers.projectId, distinctProjectIds)
+        )
+    : [];
+  const membersByProject = new Map<string, { id: string; name: string }[]>();
+  for (const m of memberRows) {
+    const list = membersByProject.get(m.projectId) ?? [];
+    list.push({ id: m.id, name: m.name });
+    membersByProject.set(m.projectId, list);
+  }
 
   const total = visibleRows.length;
   const overdue = visibleRows.filter(
@@ -208,7 +221,7 @@ export default async function TeamTasksPage() {
                         slug={group.slug}
                         currentAssignees={item.assignees}
                         currentDueDate={item.dueDate}
-                        assignees={activeUsers}
+                        assignees={membersByProject.get(item.projectId) ?? []}
                       >
                         <span className="text-xs text-muted-foreground">
                           {item.assignees.map((a) => a.name).join(", ")}

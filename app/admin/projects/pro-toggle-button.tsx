@@ -2,13 +2,13 @@
 
 import { useTransition } from "react";
 import { Button } from "@/components/ui/button";
-import { setOrgProStatus } from "../actions";
+import { setProjectDemoStatus } from "../actions";
 
 export function ProToggleButton({
-  organizationId,
+  projectId,
   isDemo,
 }: {
-  organizationId: string;
+  projectId: string;
   isDemo: boolean;
 }) {
   const [pending, startTransition] = useTransition();
@@ -17,9 +17,9 @@ export function ProToggleButton({
       size="sm"
       variant={isDemo ? "default" : "outline"}
       disabled={pending}
-      onClick={() => startTransition(() => setOrgProStatus(organizationId, !isDemo))}
+      onClick={() => startTransition(() => setProjectDemoStatus(projectId, !isDemo))}
     >
-      {isDemo ? "Grant access" : "Revoke access"}
+      {isDemo ? "Mark as real project" : "Mark as demo"}
     </Button>
   );
 }

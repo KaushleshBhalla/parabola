@@ -1,8 +1,9 @@
 import { notFound, redirect } from "next/navigation";
-import { and, eq, isNull } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { db } from "@/lib/db/client";
-import { users, projectMembers, organizationMembers } from "@/lib/db/schema";
-import { requireUser, hasRole, hasPermission } from "@/lib/auth/rbac";
+import { users, projectMembers } from "@/lib/db/schema";
+import { requireUser } from "@/lib/auth/rbac";
+import { isProjectAdmin } from "@/lib/project-access";
 import { getProjectBySlug } from "@/lib/projects";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -25,49 +26,27 @@ export default async function ProjectMembersPage({
   const [user, project] = await Promise.all([requireUser(), getProjectBySlug(slug)]);
   if (!project) notFound();
 
-  const canManage = project.organizationId
-    ? await hasPermission(user.id, project.organizationId, "role.manage")
-    : hasRole(user.role, "admin");
+  const canManage = await isProjectAdmin(user.id, project.id);
   if (!canManage) redirect("/dashboard");
 
-  const orgScopedUsers = project.organizationId
-    ? db
-        .select({
-          id: users.id,
-          name: users.name,
-          role: users.role,
-        })
-        .from(organizationMembers)
-        .innerJoin(users, eq(organizationMembers.userId, users.id))
-        .where(
-          and(
-            eq(organizationMembers.organizationId, project.organizationId),
-            isNull(users.deletedAt),
-            eq(users.isBot, false)
-          )
-        )
-        .orderBy(users.name)
-    : db
-        .select({ id: users.id, name: users.name, role: users.role })
-        .from(users)
-        .where(and(isNull(users.deletedAt), eq(users.isBot, false)))
-        .orderBy(users.name);
-
-  const [allUsers, members] = await Promise.all([
-    orgScopedUsers,
-    db
-      .select({ userId: projectMembers.userId })
-      .from(projectMembers)
-      .where(eq(projectMembers.projectId, project.id)),
-  ]);
-  const memberIds = new Set(members.map((m) => m.userId));
+  const members = await db
+    .select({
+      id: users.id,
+      name: users.name,
+      role: users.role,
+      isAdmin: projectMembers.isAdmin,
+    })
+    .from(projectMembers)
+    .innerJoin(users, eq(projectMembers.userId, users.id))
+    .where(eq(projectMembers.projectId, project.id))
+    .orderBy(users.name);
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-6 py-8">
       <div>
         <h1 className="font-heading text-xl font-semibold">Members</h1>
         <p className="text-sm text-muted-foreground">
-          Owner and admin always have access. Grant others access below.
+          Add anyone by email — they need an existing Parabola account.
         </p>
       </div>
 
@@ -82,26 +61,19 @@ export default async function ProjectMembersPage({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {allUsers.map((u) => (
-            <TableRow key={u.id}>
-              <TableCell className="font-medium">{u.name}</TableCell>
+          {members.map((m) => (
+            <TableRow key={m.id}>
+              <TableCell className="font-medium">{m.name}</TableCell>
               <TableCell>
                 <Badge variant="secondary" className="capitalize">
-                  {u.role}
+                  {m.isAdmin ? "Admin" : "Member"}
                 </Badge>
               </TableCell>
               <TableCell>
-                {hasRole(u.role, "admin") ? (
-                  <span className="text-sm text-muted-foreground">
-                    Full access
-                  </span>
+                {m.id === project.createdBy ? (
+                  <span className="text-sm text-muted-foreground">Owner</span>
                 ) : (
-                  <MemberToggle
-                    projectId={project.id}
-                    userId={u.id}
-                    slug={slug}
-                    hasAccess={memberIds.has(u.id)}
-                  />
+                  <MemberToggle projectId={project.id} userId={m.id} slug={slug} />
                 )}
               </TableCell>
             </TableRow>
