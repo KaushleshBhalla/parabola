@@ -22,6 +22,22 @@ const PRIORITY_CHOICES = [
 // Option type numbers per Discord's API: 3 STRING, 4 INTEGER, 6 USER.
 export const discordCommands = [
   {
+    name: "guide",
+    description: "Get a link to the full Vertex guide.",
+    options: [
+      {
+        name: "for",
+        description: "Which part of the guide",
+        type: 3,
+        required: false,
+        choices: [
+          { name: "Admin setup", value: "admin" },
+          { name: "Everyone (commands)", value: "user" },
+        ],
+      },
+    ],
+  },
+  {
     name: "link",
     description: "Connect your Discord account to your Parabola login.",
   },

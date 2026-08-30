@@ -66,6 +66,19 @@ async function routeCommand(interaction: {
   const commandName = interaction.data.name;
   const { subcommand, args } = flattenOptions(interaction.data.options);
 
+  if (commandName === "guide") {
+    const target = args.for === "admin" ? "#admin-setup" : args.for === "user" ? "#getting-started" : "";
+    return {
+      embeds: [
+        buildEmbed({
+          title: "Vertex Guide",
+          description: `[Open the full guide](${APP_URL}/discord/guide${target}) — every command, what it does, and how to set things up.`,
+        }),
+      ],
+      ephemeral: true,
+    };
+  }
+
   if (commandName === "link") {
     if (!discordUserId) return fail("Couldn't identify you.");
     const token = createLinkToken(discordUserId, discordUsername);
