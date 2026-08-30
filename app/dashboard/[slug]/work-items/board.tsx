@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { toast } from "sonner";
 import {
   DndContext,
   PointerSensor,
@@ -22,6 +23,12 @@ import { moveWorkItem } from "./actions";
 import { DueDateEditor } from "./due-date-editor";
 import { AssignWorkItemDialog } from "./assign-work-item-dialog";
 import { WorkItemDetailDialog } from "./work-item-detail-dialog";
+import { MoveWorkItemDialog, type PendingMove } from "./move-work-item-dialog";
+
+// Entering these columns requires a comment explaining the update; entering
+// Done is gated separately (assignor-only, requires a quality score) in
+// handleDragEnd below.
+const COMMENT_REQUIRED_STATUSES: BoardItem["status"][] = ["in_progress", "in_review"];
 
 export type BoardItem = {
   id: string;
@@ -76,7 +83,11 @@ export function WorkItemsBoard({
 }) {
   const [board, setBoard] = useState(items);
   const [prevItems, setPrevItems] = useState(items);
-  const [, startTransition] = useTransition();
+  const [pending, setPending] = useState<
+    | (PendingMove & { workItemId: string; status: BoardItem["status"]; position: number })
+    | null
+  >(null);
+  const [submitting, startTransition] = useTransition();
 
   if (items !== prevItems) {
     setPrevItems(items);
@@ -85,6 +96,22 @@ export function WorkItemsBoard({
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } })
   );
+
+  function commitMove(
+    workItemId: string,
+    status: BoardItem["status"],
+    position: number,
+    extra?: { comment?: string; qualityScore?: number }
+  ) {
+    startTransition(async () => {
+      const result = await moveWorkItem(workItemId, status, position, slug, extra);
+      if (result?.error) {
+        toast.error(result.error);
+        setBoard(items);
+      }
+      setPending(null);
+    });
+  }
 
   function resolveStatus(overId: string): BoardItem["status"] | null {
     const overItem = board.find((i) => i.id === overId);
@@ -148,9 +175,43 @@ export function WorkItemsBoard({
     else position = POSITION_GAP;
 
     setBoard(nextBoard.map((i) => (i.id === activeId ? { ...i, position } : i)));
-    startTransition(async () => {
-      await moveWorkItem(activeId, targetStatus, position, slug);
-    });
+
+    // `items` is the last server-confirmed state — use it (not `board`,
+    // which handleDragOver may have already moved optimistically) to tell
+    // whether this drop is a genuine status change.
+    const originalItem = items.find((i) => i.id === activeId);
+    const isTransition = !!originalItem && originalItem.status !== targetStatus;
+
+    if (isTransition && targetStatus === "done") {
+      if (originalItem!.createdBy !== currentUserId) {
+        toast.error("Only the person who created this task can mark it done.");
+        setBoard(items);
+        return;
+      }
+      setPending({
+        mode: "done",
+        itemTitle: activeItem.title,
+        targetLabel: "Done",
+        workItemId: activeId,
+        status: targetStatus,
+        position,
+      });
+      return;
+    }
+
+    if (isTransition && COMMENT_REQUIRED_STATUSES.includes(targetStatus)) {
+      setPending({
+        mode: "comment",
+        itemTitle: activeItem.title,
+        targetLabel: formatStatusLabel(targetStatus),
+        workItemId: activeId,
+        status: targetStatus,
+        position,
+      });
+      return;
+    }
+
+    commitMove(activeId, targetStatus, position);
   }
 
   const cancelledCount = board.filter((i) => i.status === "cancelled").length;
@@ -190,6 +251,18 @@ export function WorkItemsBoard({
           headerCount={cancelledCount}
         />
       </div>
+      <MoveWorkItemDialog
+        pending={pending}
+        submitting={submitting}
+        onConfirm={(payload) => {
+          if (!pending) return;
+          commitMove(pending.workItemId, pending.status, pending.position, payload);
+        }}
+        onCancel={() => {
+          setBoard(items);
+          setPending(null);
+        }}
+      />
     </DndContext>
   );
 }

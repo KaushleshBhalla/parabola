@@ -99,6 +99,74 @@ export async function handleTaskList(
   };
 }
 
+// ============ /board ============
+
+const BOARD_COLUMNS: { status: string; label: string }[] = [
+  { status: "backlog", label: "Backlog" },
+  { status: "todo", label: "Todo" },
+  { status: "in_progress", label: "In Progress" },
+  { status: "in_review", label: "Testing Pending" },
+  { status: "done", label: "Done" },
+  { status: "cancelled", label: "Cancelled" },
+];
+
+export async function handleBoard(project: DiscordProject, args: { column?: string }): Promise<CommandReply> {
+  if (args.column) {
+    const label = BOARD_COLUMNS.find((c) => c.status === args.column)?.label ?? args.column;
+    const rows = await db
+      .select({ number: workItems.number, title: workItems.title, priority: workItems.priority })
+      .from(workItems)
+      .where(and(eq(workItems.projectId, project.id), eq(workItems.status, args.column as never)))
+      .orderBy(desc(workItems.updatedAt))
+      .limit(20);
+
+    return {
+      embeds: [
+        buildEmbed({
+          title: `${label} — ${project.name} (${rows.length})`,
+          description: rows.length
+            ? rows.map((r) => `**#${r.number}** ${r.title}${r.priority !== "none" ? ` · ${r.priority}` : ""}`).join("\n")
+            : "Nothing in this column.",
+        }),
+      ],
+    };
+  }
+
+  const rows = await db
+    .select({ number: workItems.number, title: workItems.title, status: workItems.status })
+    .from(workItems)
+    .where(eq(workItems.projectId, project.id))
+    .orderBy(desc(workItems.updatedAt));
+
+  const byStatus = new Map<string, { number: number; title: string }[]>();
+  for (const r of rows) {
+    const list = byStatus.get(r.status) ?? [];
+    list.push({ number: r.number, title: r.title });
+    byStatus.set(r.status, list);
+  }
+
+  const SHOWN_PER_COLUMN = 8;
+  const fields = BOARD_COLUMNS.map(({ status, label }) => {
+    const columnItems = byStatus.get(status) ?? [];
+    const shown = columnItems.slice(0, SHOWN_PER_COLUMN);
+    const rest = columnItems.length - shown.length;
+    const value =
+      shown.length === 0
+        ? "—"
+        : shown.map((i) => `#${i.number} ${i.title}`).join("\n") + (rest > 0 ? `\n_+${rest} more_` : "");
+    return { name: `${label} (${columnItems.length})`, value, inline: true };
+  });
+
+  return {
+    embeds: [
+      buildEmbed({
+        title: `${project.name} — board (${rows.length} total)`,
+        fields,
+      }),
+    ],
+  };
+}
+
 // ============ /task view ============
 
 export async function handleTaskView(project: DiscordProject, args: { id: number }): Promise<CommandReply> {

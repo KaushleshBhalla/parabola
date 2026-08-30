@@ -66,6 +66,19 @@ export const discordCommands = [
     ],
   },
   {
+    name: "board",
+    description: "See the whole work item board, or just one column.",
+    options: [
+      {
+        name: "column",
+        description: "Show just this column instead of the whole board",
+        type: 3,
+        required: false,
+        choices: STATUS_CHOICES,
+      },
+    ],
+  },
+  {
     name: "assign",
     description: "Create a task and assign it to one or more people.",
     options: [

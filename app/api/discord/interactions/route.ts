@@ -15,6 +15,7 @@ import {
   handleSetup,
   handleTaskList,
   handleTaskView,
+  handleBoard,
   handleAssign,
   handleMyTasks,
 } from "@/lib/discord/handlers";
@@ -68,6 +69,7 @@ function guideEmbed() {
       "**/setup project:<name>** — link this server to one of your projects (project admins only). `/task` and `/assign` then default to it.",
       "**/task list [status] [assignee]** — list work items in this server's linked project.",
       "**/task view id:<#>** — show one task's full detail.",
+      "**/board [column]** — see the whole board (every column) at a glance, or just one column (Todo, In Progress, Testing Pending, etc.).",
       "**/assign mentions:<@people> work:<title> [project] [priority] [deadline]** — create a task and assign it. Project defaults to this server's linked one; priority and deadline are optional.",
       "**/mytasks** — your assigned tasks across every project you're in.",
       "",
@@ -147,6 +149,13 @@ async function routeCommand(interaction: {
 
   if (commandName === "mytasks") {
     return handleMyTasks(user);
+  }
+
+  if (commandName === "board") {
+    if (!guildId) return fail("This command only works inside a server.");
+    const project = await resolveProjectByGuild(guildId);
+    if (!project) return fail("This server isn't linked to a project yet — an admin should run `/setup`.");
+    return handleBoard(project, { column: args.column ? String(args.column) : undefined });
   }
 
   if (commandName === "assign") {

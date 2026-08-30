@@ -23,3 +23,4 @@ CREATE TABLE "access_requests" (
   CONSTRAINT "access_requests_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE SET NULL
 );
 CREATE INDEX "access_requests_status_idx" ON "access_requests" ("status");
+

@@ -138,15 +138,24 @@ export async function createWorkItem(
  * Moves a work item to `status` at `position` (a value computed client-side
  * as the midpoint of its new neighbors, or ±POSITION_GAP at a column edge).
  * Handles both cross-column moves and same-column reordering.
+ *
+ * Entering Todo -> In Progress -> Testing Pending requires a note (`extra.comment`)
+ * explaining the update. Entering Done is restricted to whoever created the
+ * task (the assignor) and requires a quality score out of 10 for the work —
+ * either passed in now (`extra.qualityScore`) or already set on the item.
+ * Callers without the required extra should collect it first (see
+ * move-work-item-dialog.tsx) and retry; a same-column reorder (status
+ * unchanged) skips all of this.
  */
 export async function moveWorkItem(
   workItemId: string,
   status: string,
   position: number,
-  slug: string
-) {
+  slug: string,
+  extra?: { comment?: string; qualityScore?: number }
+): Promise<{ error: string } | undefined> {
   const user = await requireUser();
-  if (!(STATUSES as readonly string[]).includes(status)) return;
+  if (!(STATUSES as readonly string[]).includes(status)) return { error: "Unknown status." };
 
   const [item] = await db
     .select({
@@ -155,18 +164,53 @@ export async function moveWorkItem(
       number: workItems.number,
       status: workItems.status,
       createdBy: workItems.createdBy,
+      qualityScore: workItems.qualityScore,
     })
     .from(workItems)
     .where(eq(workItems.id, workItemId))
     .limit(1);
-  if (!item || !(await canAccessProject(user, item.projectId))) return;
+  if (!item || !(await canAccessProject(user, item.projectId)))
+    return { error: "You don't have access to this project." };
+
+  const isTransition = item.status !== status;
+  const comment = extra?.comment?.trim() || undefined;
+  let qualityScore: number | undefined;
+
+  if (isTransition) {
+    if (status === "done") {
+      if (item.createdBy !== user.id) {
+        return { error: "Only the person who created this task can mark it done." };
+      }
+      const score = extra?.qualityScore ?? item.qualityScore ?? undefined;
+      if (score == null) {
+        return { error: "Rate the work out of 10 before marking it done." };
+      }
+      if (!Number.isInteger(score) || score < 1 || score > 10) {
+        return { error: "Score must be a whole number between 1 and 10." };
+      }
+      qualityScore = score;
+    } else if (status === "in_progress" || status === "in_review") {
+      if (!comment) {
+        return { error: "Add a comment about this update before moving it." };
+      }
+    }
+  }
 
   await db
     .update(workItems)
-    .set({ status: status as Status, position, updatedAt: new Date() })
+    .set({
+      status: status as Status,
+      position,
+      updatedAt: new Date(),
+      ...(qualityScore !== undefined ? { qualityScore } : {}),
+    })
     .where(eq(workItems.id, workItemId));
 
-  if (item.status !== status) {
+  if (comment) {
+    await db.insert(workItemComments).values({ workItemId, authorId: user.id, body: comment });
+  }
+
+  if (isTransition) {
     if (status === "cancelled" && item.createdBy !== user.id) {
       await db.insert(notifications).values({
         userId: item.createdBy,
@@ -182,12 +226,15 @@ export async function moveWorkItem(
       entityType: "work_item",
       entityId: workItemId,
       before: { status: item.status },
-      after: { status },
-      searchText: `Moved "#${item.number} ${item.title}" to ${status}`,
+      after: { status, ...(qualityScore !== undefined ? { qualityScore } : {}) },
+      searchText: `Moved "#${item.number} ${item.title}" to ${status}${qualityScore !== undefined ? ` and scored it ${qualityScore}/10` : ""}`,
     });
   }
 
   revalidatePath(`/dashboard/${slug}/work-items`);
+  revalidatePath("/dashboard/my-tasks");
+  revalidatePath("/dashboard/team-tasks");
+  return undefined;
 }
 
 export async function commitDueDate(

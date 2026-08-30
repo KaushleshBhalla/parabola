@@ -127,6 +127,7 @@ const html = `<!doctype html>
       <span class="nav-label">Tasks</span>
       <a class="nav-link" href="#task-list"><span class="hash">/</span>task list</a>
       <a class="nav-link" href="#task-view"><span class="hash">/</span>task view</a>
+      <a class="nav-link" href="#board"><span class="hash">/</span>board</a>
       <a class="nav-link" href="#assign"><span class="hash">/</span>assign</a>
       <a class="nav-link" href="#mytasks"><span class="hash">/</span>mytasks</a>
     </div>
@@ -142,7 +143,7 @@ const html = `<!doctype html>
       <h1 class="title">Vertex</h1>
       <p class="lede">Parabola, wherever your team already is. Vertex keeps things deliberately minimal — check tasks, create and assign new ones, from Discord. Everything else (projects, members, roadmap) lives on the website.</p>
       <div class="stat-row">
-        <div class="stat"><b>6</b><span>Slash commands</span></div>
+        <div class="stat"><b>7</b><span>Slash commands</span></div>
         <div class="stat"><b>1:1</b><span>Server ↔ project</span></div>
       </div>
     </div>
@@ -233,6 +234,17 @@ const html = `<!doctype html>
         <p class="cmd-desc">The full detail view — description, every assignee, priority, and due date.</p>
         <div class="params">
           <span class="p-name">id<span class="p-req">•</span></span><span class="p-desc">The task number, e.g. <code>14</code>.</span>
+        </div>
+      </div>
+
+      <div class="cmd-card" id="board">
+        <div class="cmd-head">
+          <span class="cmd-syntax">/board <span class="opt">[column]</span></span>
+          <span class="badge everyone">Project members</span>
+        </div>
+        <p class="cmd-desc">A snapshot of the whole board — every column, with counts — or pass <code>column</code> to zoom into just one (e.g. Todo, In Progress, Testing Pending).</p>
+        <div class="params">
+          <span class="p-name">column</span><span class="p-desc">Backlog · Todo · In Progress · Testing Pending · Done · Cancelled. Leave it out to see everything.</span>
         </div>
       </div>
 
