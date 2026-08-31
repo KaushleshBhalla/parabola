@@ -20,6 +20,13 @@ import {
   handleMyTasks,
 } from "@/lib/discord/handlers";
 
+// This route's DB round trips all go to Supabase in ap-northeast-1 (Tokyo)
+// and it does nothing else region-sensitive (Discord's own API is globally
+// anycast), so pin it near the database instead of the app's default
+// region — cuts real time off every command that touches the DB, which is
+// most of them, against Discord's tight 3-second interaction deadline.
+export const preferredRegion = "hnd1";
+
 const APP_URL = "https://parabolaa.vercel.app";
 
 function fail(message: string): CommandReply {
