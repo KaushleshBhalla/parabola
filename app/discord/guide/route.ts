@@ -5,7 +5,7 @@ const html = `<!doctype html>
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Vertex Guide — Parabola</title>
+<title>Discord Bot Guide — Parabola</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700;800&family=Manrope:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -112,8 +112,8 @@ const html = `<!doctype html>
 <div class="shell">
   <nav class="sidebar">
     <div class="brand">
-      <div class="brand-mark">V</div>
-      <div class="brand-text"><strong>Vertex</strong><span>for Parabola</span></div>
+      <div class="brand-mark">P</div>
+      <div class="brand-text"><strong>Parabola</strong><span>Discord bot</span></div>
     </div>
     <div class="nav-group">
       <span class="nav-label">Admins start here</span>
@@ -139,9 +139,9 @@ const html = `<!doctype html>
 
   <main>
     <div class="intro">
-      <span class="eyebrow"><span class="dot"></span>VERTEX IS LIVE</span>
-      <h1 class="title">Vertex</h1>
-      <p class="lede">Parabola, wherever your team already is. Vertex keeps things deliberately minimal — check tasks, create and assign new ones, from Discord. Everything else (projects, members, roadmap) lives on the website.</p>
+      <span class="eyebrow"><span class="dot"></span>BOT IS LIVE</span>
+      <h1 class="title">Parabola for Discord</h1>
+      <p class="lede">Parabola, wherever your team already is. It keeps things deliberately minimal — check tasks, create and assign new ones, from Discord. Everything else (projects, members, roadmap) lives on the website.</p>
       <div class="stat-row">
         <div class="stat"><b>7</b><span>Slash commands</span></div>
         <div class="stat"><b>1:1</b><span>Server ↔ project</span></div>
@@ -153,8 +153,8 @@ const html = `<!doctype html>
       <p class="category-desc">One person does this once per Discord server. After that, everyone below just uses the commands.</p>
 
       <div class="cmd-card">
-        <div class="cmd-head"><span class="cmd-syntax">Step 1 — Invite Vertex to your server</span></div>
-        <p class="cmd-desc">Get an invite link from whoever runs your Parabola instance, open it, and pick your server. Vertex needs the <code>bot</code> and <code>applications.commands</code> scopes to work at all.</p>
+        <div class="cmd-head"><span class="cmd-syntax">Step 1 — Invite the bot to your server</span></div>
+        <p class="cmd-desc">Get an invite link from whoever runs your Parabola instance, open it, and pick your server. It needs the <code>bot</code> and <code>applications.commands</code> scopes to work at all.</p>
       </div>
 
       <div class="cmd-card" id="setup">
@@ -179,7 +179,7 @@ const html = `<!doctype html>
           <li><strong>"This server isn't linked yet"</strong> — an admin needs to run <code>/setup</code>.</li>
           <li><strong>"Link your account first"</strong> — run <code>/link</code> and check your DMs.</li>
           <li><strong>A command doesn't show up</strong> — new commands can take up to an hour to appear everywhere; usually instant in the first server that tried them.</li>
-          <li><strong>Vertex doesn't respond at all</strong> — ping whoever runs your Parabola instance, something's misconfigured on our end, not yours.</li>
+          <li><strong>The bot doesn't respond at all</strong> — ping whoever runs your Parabola instance, something's misconfigured on our end, not yours.</li>
         </ul>
       </div>
     </section>
@@ -193,16 +193,16 @@ const html = `<!doctype html>
           <span class="cmd-syntax">/link</span>
           <span class="badge everyone">Everyone</span>
         </div>
-        <p class="cmd-desc">Connects your Discord account to your Parabola login. Vertex DMs you a one-time link — open it, sign in to Parabola (or confirm you're already signed in), and the two accounts are paired for good.</p>
+        <p class="cmd-desc">Connects your Discord account to your Parabola login. It DMs you a one-time link — open it, sign in to Parabola (or confirm you're already signed in), and the two accounts are paired for good.</p>
         <div class="exchange">
           <div class="msg">
             <div class="avatar user">K</div>
             <div class="msg-body"><span class="msg-name">Kaushlesh</span><span class="msg-text">/link</span></div>
           </div>
           <div class="msg">
-            <div class="avatar bot">V</div>
+            <div class="avatar bot">P</div>
             <div class="msg-body">
-              <span class="msg-name">Vertex<span class="tag">BOT</span></span>
+              <span class="msg-name">Parabola<span class="tag">BOT</span></span>
               <div class="embed"><strong>Check your DMs</strong>I've sent you a private link to connect your Parabola account. It expires in 10 minutes.</div>
             </div>
           </div>
@@ -283,7 +283,7 @@ const html = `<!doctype html>
     <div class="note">Everything else — creating projects, requesting access, inviting teammates, changing a task's status, viewing the roadmap and activity log — lives on <a href="https://parabolaa.vercel.app/dashboard">the website</a>.</div>
 
     <footer>
-      <span>Vertex — a Parabola integration</span>
+      <span>Parabola Discord bot</span>
       <span><a href="https://parabolaa.vercel.app/dashboard">Back to Parabola →</a></span>
     </footer>
   </main>
