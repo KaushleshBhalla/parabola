@@ -17,6 +17,7 @@ export default async function DashboardPage() {
       slug: projects.slug,
       description: projects.description,
       isDemo: projects.isDemo,
+      archivedAt: projects.archivedAt,
     })
     .from(projects)
     .innerJoin(projectMembers, eq(projectMembers.projectId, projects.id))
@@ -44,6 +45,9 @@ export default async function DashboardPage() {
                   <div className="flex items-center gap-2">
                     <CardTitle>{project.name}</CardTitle>
                     {project.isDemo && <Badge variant="secondary">Demo</Badge>}
+                    {project.archivedAt && (
+                      <Badge variant="outline">Needs Pro</Badge>
+                    )}
                   </div>
                   {project.description && (
                     <CardDescription>{project.description}</CardDescription>

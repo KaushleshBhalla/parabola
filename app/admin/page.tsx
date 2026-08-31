@@ -8,6 +8,7 @@ import {
   approveAccessRequest,
   declineAccessRequest,
   markAccessRequestContacted,
+  revokeAccessApproval,
 } from "./actions";
 
 export default async function AdminRequestsPage() {
@@ -34,7 +35,8 @@ export default async function AdminRequestsPage() {
       <p className="text-sm text-muted-foreground">
         {rows.length} request{rows.length === 1 ? "" : "s"} — approving lets
         them create their own project from the dashboard. Their demo
-        project is unaffected either way.
+        project is unaffected either way. The same person can submit more
+        than once (e.g. after being revoked); every request shows up here.
       </p>
 
       {rows.length === 0 ? (
@@ -54,7 +56,7 @@ export default async function AdminRequestsPage() {
                     variant={
                       r.status === "approved"
                         ? "default"
-                        : r.status === "declined"
+                        : r.status === "declined" || r.status === "revoked"
                           ? "outline"
                           : "secondary"
                     }
@@ -79,21 +81,31 @@ export default async function AdminRequestsPage() {
                 {r.message && <p className="text-sm">{r.message}</p>}
               </div>
               <div className="flex w-36 shrink-0 flex-col gap-1.5">
-                <form action={approveAccessRequest.bind(null, r.id)}>
-                  <Button type="submit" size="sm" className="w-full">
-                    Approve
-                  </Button>
-                </form>
-                <form action={markAccessRequestContacted.bind(null, r.id)}>
-                  <Button type="submit" size="sm" variant="outline" className="w-full">
-                    Mark contacted
-                  </Button>
-                </form>
-                <form action={declineAccessRequest.bind(null, r.id)}>
-                  <Button type="submit" size="sm" variant="ghost" className="w-full">
-                    Decline
-                  </Button>
-                </form>
+                {r.status === "approved" ? (
+                  <form action={revokeAccessApproval.bind(null, r.id)}>
+                    <Button type="submit" size="sm" variant="destructive" className="w-full">
+                      Revoke
+                    </Button>
+                  </form>
+                ) : (
+                  <>
+                    <form action={approveAccessRequest.bind(null, r.id)}>
+                      <Button type="submit" size="sm" className="w-full">
+                        Approve
+                      </Button>
+                    </form>
+                    <form action={markAccessRequestContacted.bind(null, r.id)}>
+                      <Button type="submit" size="sm" variant="outline" className="w-full">
+                        Mark contacted
+                      </Button>
+                    </form>
+                    <form action={declineAccessRequest.bind(null, r.id)}>
+                      <Button type="submit" size="sm" variant="ghost" className="w-full">
+                        Decline
+                      </Button>
+                    </form>
+                  </>
+                )}
               </div>
             </div>
           ))}

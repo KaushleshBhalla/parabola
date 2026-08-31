@@ -180,6 +180,7 @@ const html = `<!doctype html>
           <li><strong>"Link your account first"</strong> — run <code>/link</code> and check your DMs.</li>
           <li><strong>A command doesn't show up</strong> — new commands can take up to an hour to appear everywhere; usually instant in the first server that tried them.</li>
           <li><strong>The bot doesn't respond at all</strong> — ping whoever runs your Parabola instance, something's misconfigured on our end, not yours.</li>
+          <li><strong>"X isn't in this project"</strong> when using <code>/assign</code> — that person needs to be added to the project first, by email, from that project's Members page on the website.</li>
         </ul>
       </div>
     </section>

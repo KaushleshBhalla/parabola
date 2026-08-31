@@ -1,6 +1,6 @@
 import "server-only";
 import { randomBytes } from "node:crypto";
-import { eq, and } from "drizzle-orm";
+import { eq, and, isNull } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import { projects, projectMembers, projectCounters, users, accessRequests } from "@/lib/db/schema";
 import { seedDemoProject } from "@/lib/demo/seed";
@@ -108,6 +108,27 @@ export async function hasRealProject(userId: string): Promise<boolean> {
     .from(projectMembers)
     .innerJoin(projects, eq(projectMembers.projectId, projects.id))
     .where(and(eq(projectMembers.userId, userId), eq(projects.isDemo, false)))
+    .limit(1);
+  return !!realProject;
+}
+
+/**
+ * True only if the real project is also unarchived — unlike hasRealProject,
+ * this goes false again once an admin revokes Pro access (which archives
+ * the project rather than deleting it). Drives the sidebar's Pro badge.
+ */
+export async function hasActiveRealProject(userId: string): Promise<boolean> {
+  const [realProject] = await db
+    .select({ id: projects.id })
+    .from(projectMembers)
+    .innerJoin(projects, eq(projectMembers.projectId, projects.id))
+    .where(
+      and(
+        eq(projectMembers.userId, userId),
+        eq(projects.isDemo, false),
+        isNull(projects.archivedAt)
+      )
+    )
     .limit(1);
   return !!realProject;
 }

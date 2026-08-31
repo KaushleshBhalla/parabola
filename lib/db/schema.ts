@@ -74,6 +74,7 @@ export const accessRequestStatusEnum = pgEnum("access_request_status", [
   "contacted",
   "approved",
   "declined",
+  "revoked",
 ]);
 
 // ============ USERS & SESSIONS ============

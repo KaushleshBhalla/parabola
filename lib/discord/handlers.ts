@@ -5,6 +5,7 @@ import {
   users,
   projects,
   projectCounters,
+  projectMembers,
   workItems,
   workItemAssignees,
 } from "@/lib/db/schema";
@@ -216,6 +217,21 @@ export async function handleAssign(
   const priority = args.priority && (PRIORITIES as readonly string[]).includes(args.priority) ? args.priority : "none";
   const { found: assignees, unlinkedCount } = await resolveMentionedUsers(args.mentions);
   if (assignees.length === 0) return fail("Mention at least one person who's linked their Parabola account with `/link`.");
+
+  const memberIds = new Set(
+    (
+      await db
+        .select({ userId: projectMembers.userId })
+        .from(projectMembers)
+        .where(eq(projectMembers.projectId, project.id))
+    ).map((m) => m.userId)
+  );
+  const notInProject = assignees.filter((a) => !memberIds.has(a.id));
+  if (notInProject.length > 0) {
+    return fail(
+      `${notInProject.map((a) => a.name).join(", ")} ${notInProject.length === 1 ? "isn't" : "aren't"} in **${project.name}** — add them from the project's Members page first.`
+    );
+  }
 
   const [counter] = await db
     .update(projectCounters)

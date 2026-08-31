@@ -9,9 +9,11 @@ import {
   Users,
   ScrollText,
   LayoutDashboard,
+  Crown,
 } from "lucide-react";
 import { SignOutButton } from "@clerk/nextjs";
 import { requireUser, hasRole } from "@/lib/auth/rbac";
+import { hasActiveRealProject } from "@/lib/project-access";
 import { db } from "@/lib/db/client";
 import { notifications, workItems, projects, projectMembers } from "@/lib/db/schema";
 import { Button } from "@/components/ui/button";
@@ -25,7 +27,7 @@ export default async function DashboardLayout({
 }) {
   const user = await requireUser();
 
-  const [myProjects, notificationRows] = await Promise.all([
+  const [myProjects, notificationRows, isPro] = await Promise.all([
     db
       .select({ id: projectMembers.projectId })
       .from(projectMembers)
@@ -45,6 +47,7 @@ export default async function DashboardLayout({
       .where(eq(notifications.userId, user.id))
       .orderBy(desc(notifications.createdAt))
       .limit(15),
+    hasActiveRealProject(user.id),
   ]);
   if (myProjects.length === 0) redirect("/onboarding");
 
@@ -119,6 +122,22 @@ export default async function DashboardLayout({
             </Link>
           )}
         </nav>
+        <div className="border-t pt-3 pb-1">
+          {isPro ? (
+            <div className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm font-medium text-primary">
+              <Crown className="size-4" />
+              You have Pro
+            </div>
+          ) : (
+            <Link
+              href="/dashboard/request-access"
+              className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm hover:bg-muted"
+            >
+              <Crown className="size-4" />
+              Request Pro access
+            </Link>
+          )}
+        </div>
         <div className="flex items-center gap-2 border-t pt-3">
           <Avatar size="sm">
             <AvatarFallback>

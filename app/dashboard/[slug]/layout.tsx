@@ -23,6 +23,26 @@ export default async function ProjectLayout({
   if (!project) notFound();
   if (!(await canAccessProject(user, project.id))) notFound();
 
+  if (project.archivedAt) {
+    return (
+      <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 py-12 text-center">
+        <h1 className="font-heading text-lg font-semibold">
+          {project.name} needs Pro access to continue
+        </h1>
+        <p className="max-w-sm text-sm text-muted-foreground">
+          This project is locked until Pro access is restored. Nothing was
+          deleted — request access again and it&apos;ll come right back.
+        </p>
+        <Link
+          href="/dashboard/request-access"
+          className="font-medium text-primary hover:underline"
+        >
+          Request project access
+        </Link>
+      </div>
+    );
+  }
+
   const canCreateOwn = project.isDemo && (await canCreateOwnProject(user.id));
 
   return (
