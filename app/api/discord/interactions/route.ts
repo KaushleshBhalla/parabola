@@ -9,7 +9,7 @@ import {
   resolveUserProject,
   listUserProjects,
 } from "@/lib/discord/resolve";
-import { canAccessProject } from "@/lib/auth/rbac";
+import { canAccessProject } from "@/lib/auth/roles";
 import {
   type CommandReply,
   handleSetup,
