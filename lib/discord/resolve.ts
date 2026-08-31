@@ -3,15 +3,6 @@ import { and, eq, ilike, or } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import { projects, projectMembers, users } from "@/lib/db/schema";
 
-export async function resolveProjectByGuild(guildId: string) {
-  const [project] = await db
-    .select()
-    .from(projects)
-    .where(eq(projects.discordGuildId, guildId))
-    .limit(1);
-  return project ?? null;
-}
-
 export async function resolveUserByDiscordId(discordUserId: string) {
   const [user] = await db
     .select()
@@ -27,7 +18,7 @@ export function extractMentionedDiscordIds(text: string): string[] {
   return [...new Set([...matches].map((m) => m[1]))];
 }
 
-/** Every project a user belongs to — backs the `project` autocomplete on /setup and /assign. */
+/** Every project a user belongs to — backs the `project` autocomplete everywhere it appears. */
 export async function listUserProjects(userId: string, query?: string) {
   return db
     .select({ id: projects.id, name: projects.name })
@@ -61,4 +52,34 @@ export async function resolveUserProject(userId: string, input: string) {
     .where(and(eq(projectMembers.userId, userId), matchesInput))
     .limit(1);
   return project?.project ?? null;
+}
+
+/**
+ * Shared project resolution for every command that needs exactly one
+ * project: an explicit `project` option always wins; otherwise, since
+ * there's no more one-server-one-project link, default to the user's only
+ * project if they have just one, or ask them to pick (there's no server-wide
+ * fallback — everyone just sees all of their own projects, picked by name).
+ */
+export async function resolveCommandProject(
+  userId: string,
+  explicitInput: string | undefined
+): Promise<{ project: typeof projects.$inferSelect } | { error: string }> {
+  if (explicitInput) {
+    const project = await resolveUserProject(userId, explicitInput);
+    if (!project) return { error: `No project called "${explicitInput}" that you belong to.` };
+    return { project };
+  }
+
+  const mine = await listUserProjects(userId);
+  if (mine.length === 0) return { error: "You're not in any projects yet." };
+  if (mine.length > 1) {
+    return {
+      error: `You're in ${mine.length} projects — pass \`project\` to pick one: ${mine.map((p) => p.name).join(", ")}.`,
+    };
+  }
+
+  const project = await resolveUserProject(userId, mine[0].id);
+  if (!project) return { error: "Couldn't load your project — try again." };
+  return { project };
 }

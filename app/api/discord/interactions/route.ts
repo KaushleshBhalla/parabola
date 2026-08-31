@@ -4,15 +4,12 @@ import { createLinkToken } from "@/lib/discord/link-token";
 import { sendDirectMessage } from "@/lib/discord/api";
 import { buildEmbed, DANGER_COLOR } from "@/lib/discord/embeds";
 import {
-  resolveProjectByGuild,
   resolveUserByDiscordId,
-  resolveUserProject,
+  resolveCommandProject,
   listUserProjects,
 } from "@/lib/discord/resolve";
-import { canAccessProject } from "@/lib/auth/roles";
 import {
   type CommandReply,
-  handleSetup,
   handleTaskList,
   handleTaskView,
   handleBoard,
@@ -73,11 +70,11 @@ function guideEmbed() {
     title: "Parabola commands",
     description: [
       "**/link** — connect your Discord account to your Parabola login (DMs you a link).",
-      "**/setup project:<name>** — link this server to one of your projects (project admins only). `/task` and `/assign` then default to it.",
-      "**/task list [status] [assignee]** — list work items in this server's linked project.",
-      "**/task view id:<#>** — show one task's full detail.",
-      "**/board [column]** — see the whole board (every column) at a glance, or just one column (Todo, In Progress, Testing Pending, etc.).",
-      "**/assign mentions:<@people> work:<title> [project] [priority] [deadline]** — create a task and assign it. Project defaults to this server's linked one; priority and deadline are optional.",
+      "**/task list [project] [status] [assignee]** — list work items in one of your projects.",
+      "**/task view id:<#> [project]** — show one task's full detail.",
+      "**/board [project] [column]** — see the whole board (every column) at a glance, or just one column (Todo, In Progress, Testing Pending, etc.).",
+      "**/assign mentions:<@people> work:<title> [project] [priority] [deadline]** — create a task and assign it.",
+      "`project` is optional everywhere above (autocomplete over every project you're in) — it defaults to your only project if you're just in one, otherwise you'll be asked to pick.",
       "**/mytasks** — your assigned tasks across every project you're in.",
       "",
       `[Full guide with screenshots](${APP_URL}/discord/guide)`,
@@ -104,7 +101,6 @@ async function routeAutocomplete(interaction: {
 }
 
 async function routeCommand(interaction: {
-  guild_id?: string;
   member?: { user?: { id: string; username: string; global_name?: string | null } };
   user?: { id: string; username: string; global_name?: string | null };
   data: { name: string; options?: RawOption[] };
@@ -116,7 +112,6 @@ async function routeCommand(interaction: {
     interaction.user?.global_name ??
     interaction.user?.username ??
     "there";
-  const guildId = interaction.guild_id;
   const commandName = interaction.data.name;
   const { subcommand, args } = flattenOptions(interaction.data.options);
 
@@ -142,15 +137,6 @@ async function routeCommand(interaction: {
     }
   }
 
-  if (commandName === "setup") {
-    if (!guildId) return fail("This only works inside a server.");
-    const discordUser = discordUserId ? await resolveUserByDiscordId(discordUserId) : null;
-    if (!discordUser) return fail("Link your account first with `/link`.");
-    const project = await resolveUserProject(discordUser.id, String(args.project ?? ""));
-    if (!project) return fail(`No project called "${args.project}" that you belong to.`);
-    return handleSetup(discordUser, guildId, project);
-  }
-
   const user = discordUserId ? await resolveUserByDiscordId(discordUserId) : null;
   if (!user) return fail("Link your account first with `/link`.");
 
@@ -159,23 +145,15 @@ async function routeCommand(interaction: {
   }
 
   if (commandName === "board") {
-    if (!guildId) return fail("This command only works inside a server.");
-    const project = await resolveProjectByGuild(guildId);
-    if (!project) return fail("This server isn't linked to a project yet — an admin should run `/setup`.");
-    return handleBoard(project, { column: args.column ? String(args.column) : undefined });
+    const resolved = await resolveCommandProject(user.id, args.project ? String(args.project) : undefined);
+    if ("error" in resolved) return fail(resolved.error);
+    return handleBoard(resolved.project, { column: args.column ? String(args.column) : undefined });
   }
 
   if (commandName === "assign") {
-    let project = null;
-    if (args.project) {
-      project = await resolveUserProject(user.id, String(args.project));
-      if (!project) return fail(`No project called "${args.project}" that you belong to.`);
-    } else if (guildId) {
-      project = await resolveProjectByGuild(guildId);
-    }
-    if (!project) return fail("Pass a `project`, or run `/setup` to link this server to one first.");
-    if (!(await canAccessProject(user, project.id))) return fail("You don't have access to that project.");
-    return handleAssign(user, project, {
+    const resolved = await resolveCommandProject(user.id, args.project ? String(args.project) : undefined);
+    if ("error" in resolved) return fail(resolved.error);
+    return handleAssign(user, resolved.project, {
       mentions: String(args.mentions ?? ""),
       work: String(args.work ?? ""),
       priority: args.priority ? String(args.priority) : undefined,
@@ -184,9 +162,9 @@ async function routeCommand(interaction: {
   }
 
   if (commandName === "task") {
-    if (!guildId) return fail("This command only works inside a server.");
-    const project = await resolveProjectByGuild(guildId);
-    if (!project) return fail("This server isn't linked to a project yet — an admin should run `/setup`.");
+    const resolved = await resolveCommandProject(user.id, args.project ? String(args.project) : undefined);
+    if ("error" in resolved) return fail(resolved.error);
+    const { project } = resolved;
 
     switch (subcommand) {
       case "list": {

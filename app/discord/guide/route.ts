@@ -116,11 +116,7 @@ const html = `<!doctype html>
       <div class="brand-text"><strong>Parabola</strong><span>Discord bot</span></div>
     </div>
     <div class="nav-group">
-      <span class="nav-label">Admins start here</span>
-      <a class="nav-link" href="#admin-setup"><span class="hash">#</span>Admin setup</a>
-    </div>
-    <div class="nav-group">
-      <span class="nav-label">Everyone starts here</span>
+      <span class="nav-label">Start here</span>
       <a class="nav-link" href="#getting-started"><span class="hash">/</span>link</a>
     </div>
     <div class="nav-group">
@@ -135,66 +131,40 @@ const html = `<!doctype html>
       <span class="nav-label">In Discord</span>
       <a class="nav-link" href="#guide-cmd"><span class="hash">/</span>guide</a>
     </div>
+    <div class="nav-group">
+      <span class="nav-label">On the website</span>
+      <a class="nav-link" href="#pro-access"><span class="hash">#</span>Request Pro access</a>
+      <a class="nav-link" href="#create-project"><span class="hash">#</span>Create a project</a>
+      <a class="nav-link" href="#invite-members"><span class="hash">#</span>Add members</a>
+    </div>
   </nav>
 
   <main>
     <div class="intro">
       <span class="eyebrow"><span class="dot"></span>BOT IS LIVE</span>
       <h1 class="title">Parabola for Discord</h1>
-      <p class="lede">Parabola, wherever your team already is. It keeps things deliberately minimal — check tasks, create and assign new ones, from Discord. Everything else (projects, members, roadmap) lives on the website.</p>
+      <p class="lede">Parabola, wherever your team already is. It keeps things deliberately minimal — check tasks, create and assign new ones, from Discord, across every project you're in. Creating projects and adding members lives on the website.</p>
       <div class="stat-row">
         <div class="stat"><b>7</b><span>Slash commands</span></div>
-        <div class="stat"><b>1:1</b><span>Server ↔ project</span></div>
+        <div class="stat"><b>All</b><span>Your projects, one bot</span></div>
       </div>
     </div>
 
-    <section class="category" id="admin-setup">
-      <div class="category-head"><h2>Admin setup</h2></div>
-      <p class="category-desc">One person does this once per Discord server. After that, everyone below just uses the commands.</p>
+    <section class="category" id="getting-started">
+      <div class="category-head"><h2>Getting started</h2></div>
+      <p class="category-desc">Two steps, both one-time. There's no per-server setup command — the bot just works, everywhere, for every project you're in.</p>
 
       <div class="cmd-card">
         <div class="cmd-head"><span class="cmd-syntax">Step 1 — Invite the bot to your server</span></div>
         <p class="cmd-desc">Get an invite link from whoever runs your Parabola instance, open it, and pick your server. It needs the <code>bot</code> and <code>applications.commands</code> scopes to work at all.</p>
       </div>
 
-      <div class="cmd-card" id="setup">
-        <div class="cmd-head">
-          <span class="cmd-syntax">/setup <span class="opt">project:&lt;name&gt;</span></span>
-          <span class="badge perm">Requires project admin</span>
-        </div>
-        <p class="cmd-desc">Run this once, in the server, as an admin on the Parabola project you want linked. It links the whole server to that one project — <code>/task</code> and <code>/assign</code> default to it from then on. Start typing and pick from the projects you belong to; this links an <em>existing</em> project, creating a new one only happens on the website.</p>
-        <div class="params">
-          <span class="p-name">project</span><span class="p-desc">Pick from the projects you're a member of (autocomplete).</span>
-        </div>
-      </div>
-
-      <div class="cmd-card">
-        <div class="cmd-head"><span class="cmd-syntax">Step 3 — everyone runs /link</span></div>
-        <p class="cmd-desc">Each teammate connects their own account once — see <a href="#link">/link</a> just below. Nothing else works for someone until they've done this.</p>
-      </div>
-
-      <div class="cmd-card">
-        <div class="cmd-head"><span class="cmd-syntax">Troubleshooting</span></div>
-        <ul class="trouble-list">
-          <li><strong>"This server isn't linked yet"</strong> — an admin needs to run <code>/setup</code>.</li>
-          <li><strong>"Link your account first"</strong> — run <code>/link</code> and check your DMs.</li>
-          <li><strong>A command doesn't show up</strong> — new commands can take up to an hour to appear everywhere; usually instant in the first server that tried them.</li>
-          <li><strong>The bot doesn't respond at all</strong> — ping whoever runs your Parabola instance, something's misconfigured on our end, not yours.</li>
-          <li><strong>"X isn't in this project"</strong> when using <code>/assign</code> — that person needs to be added to the project first, by email, from that project's Members page on the website.</li>
-        </ul>
-      </div>
-    </section>
-
-    <section class="category" id="getting-started">
-      <div class="category-head"><h2>Connect your account</h2></div>
-      <p class="category-desc">Run this once — every command after reads and writes as you.</p>
-
       <div class="cmd-card" id="link">
         <div class="cmd-head">
-          <span class="cmd-syntax">/link</span>
+          <span class="cmd-syntax">Step 2 — /link</span>
           <span class="badge everyone">Everyone</span>
         </div>
-        <p class="cmd-desc">Connects your Discord account to your Parabola login. It DMs you a one-time link — open it, sign in to Parabola (or confirm you're already signed in), and the two accounts are paired for good.</p>
+        <p class="cmd-desc">Each teammate connects their own Discord account to their Parabola login, once. It DMs you a one-time link — open it, sign in to Parabola (or confirm you're already signed in), and the two accounts are paired for good. Nothing else works for someone until they've done this.</p>
         <div class="exchange">
           <div class="msg">
             <div class="avatar user">K</div>
@@ -209,19 +179,31 @@ const html = `<!doctype html>
           </div>
         </div>
       </div>
+
+      <div class="cmd-card">
+        <div class="cmd-head"><span class="cmd-syntax">Troubleshooting</span></div>
+        <ul class="trouble-list">
+          <li><strong>"Link your account first"</strong> — run <code>/link</code> and check your DMs.</li>
+          <li><strong>"You're in N projects — pass project to pick one"</strong> — you belong to more than one project, so a command can't guess which you mean; add <code>project:</code> and start typing to pick from a list.</li>
+          <li><strong>A command doesn't show up</strong> — new commands can take up to an hour to appear everywhere; usually instant in the first server that tried them.</li>
+          <li><strong>The bot doesn't respond at all</strong> — ping whoever runs your Parabola instance, something's misconfigured on our end, not yours.</li>
+          <li><strong>"X isn't in this project"</strong> when using <code>/assign</code> — that person needs to be added to the project first, by email, from that project's Members page on the website (see <a href="#invite-members">Add members</a> below).</li>
+        </ul>
+      </div>
     </section>
 
     <section class="category" id="tasks-heading">
       <div class="category-head"><h2>Tasks</h2></div>
-      <p class="category-desc"><code>/task</code> reads this server's linked project. <code>/assign</code> creates a task and assigns it — the only way to add work from Discord.</p>
+      <p class="category-desc">Every command below takes an optional <code>project</code> (autocomplete over every project you're in). Leave it out and it defaults to your only project if you're just in one — if you're in several, you'll be asked to pick. <code>/assign</code> creates a task and assigns it — the only way to add work from Discord.</p>
 
       <div class="cmd-card" id="task-list">
         <div class="cmd-head">
-          <span class="cmd-syntax">/task list <span class="opt">[status] [assignee]</span></span>
-          <span class="badge everyone">Project members</span>
+          <span class="cmd-syntax">/task list <span class="opt">[project] [status] [assignee]</span></span>
+          <span class="badge everyone">Everyone</span>
         </div>
-        <p class="cmd-desc">A filtered slice of this server's linked project as a compact list — narrow it to one status column or one person's queue.</p>
+        <p class="cmd-desc">A filtered slice of one project's board as a compact list — narrow it to one status column or one person's queue.</p>
         <div class="params">
+          <span class="p-name">project</span><span class="p-desc">Which project (autocomplete).</span>
           <span class="p-name">status</span><span class="p-desc">Backlog · Todo · In Progress · Testing Pending · In Review · Done · Cancelled.</span>
           <span class="p-name">assignee</span><span class="p-desc">Limit to one teammate's tasks.</span>
         </div>
@@ -229,36 +211,38 @@ const html = `<!doctype html>
 
       <div class="cmd-card" id="task-view">
         <div class="cmd-head">
-          <span class="cmd-syntax">/task view <span class="opt">id</span></span>
-          <span class="badge everyone">Project members</span>
+          <span class="cmd-syntax">/task view <span class="opt">id [project]</span></span>
+          <span class="badge everyone">Everyone</span>
         </div>
         <p class="cmd-desc">The full detail view — description, every assignee, priority, and due date.</p>
         <div class="params">
           <span class="p-name">id<span class="p-req">•</span></span><span class="p-desc">The task number, e.g. <code>14</code>.</span>
+          <span class="p-name">project</span><span class="p-desc">Which project (autocomplete).</span>
         </div>
       </div>
 
       <div class="cmd-card" id="board">
         <div class="cmd-head">
-          <span class="cmd-syntax">/board <span class="opt">[column]</span></span>
-          <span class="badge everyone">Project members</span>
+          <span class="cmd-syntax">/board <span class="opt">[project] [column]</span></span>
+          <span class="badge everyone">Everyone</span>
         </div>
-        <p class="cmd-desc">A snapshot of the whole board — every column, with counts — or pass <code>column</code> to zoom into just one (e.g. Todo, In Progress, Testing Pending).</p>
+        <p class="cmd-desc">A snapshot of one project's whole board — every column, with counts — or pass <code>column</code> to zoom into just one (e.g. Todo, In Progress, Testing Pending).</p>
         <div class="params">
-          <span class="p-name">column</span><span class="p-desc">Backlog · Todo · In Progress · Testing Pending · In Review · Done · Cancelled. Leave it out to see everything.</span>
+          <span class="p-name">project</span><span class="p-desc">Which project (autocomplete).</span>
+          <span class="p-name">column</span><span class="p-desc">Backlog · Todo · In Progress · Testing Pending · In Review · Done · Cancelled. Leave it out to see every column.</span>
         </div>
       </div>
 
       <div class="cmd-card" id="assign">
         <div class="cmd-head">
           <span class="cmd-syntax">/assign <span class="opt">mentions work [project] [priority] [deadline]</span></span>
-          <span class="badge everyone">Project members</span>
+          <span class="badge everyone">Everyone</span>
         </div>
-        <p class="cmd-desc">Creates a new task and assigns it to whoever you mention. Everything but the mentions and the work itself is optional — pick a project (autocomplete over every project you're in; defaults to this server's linked one), a priority, and a deadline if you have them.</p>
+        <p class="cmd-desc">Creates a new task and assigns it to whoever you mention. Everything but the mentions and the work itself is optional. Everyone you mention needs to already be a member of that project — see <a href="#invite-members">Add members</a> below if they aren't yet.</p>
         <div class="params">
-          <span class="p-name">mentions<span class="p-req">•</span></span><span class="p-desc">One or more @mentions.</span>
+          <span class="p-name">mentions<span class="p-req">•</span></span><span class="p-desc">One or more @mentions — each needs to be a member of the project and have run /link.</span>
           <span class="p-name">work<span class="p-req">•</span></span><span class="p-desc">What the task is — becomes its title.</span>
-          <span class="p-name">project</span><span class="p-desc">Which project. Defaults to this server's linked project.</span>
+          <span class="p-name">project</span><span class="p-desc">Which project (autocomplete).</span>
           <span class="p-name">priority</span><span class="p-desc">Low · Medium · High.</span>
           <span class="p-name">deadline</span><span class="p-desc">YYYY-MM-DD, optional.</span>
         </div>
@@ -281,7 +265,27 @@ const html = `<!doctype html>
       </div>
     </section>
 
-    <div class="note">Everything else — creating projects, requesting access, inviting teammates, changing a task's status, viewing the roadmap and activity log — lives on <a href="https://parabolaa.vercel.app/dashboard">the website</a>.</div>
+    <section class="category" id="website-heading">
+      <div class="category-head"><h2>On the website</h2></div>
+      <p class="category-desc">Three things Discord deliberately can't do — setting up a project and its people is website-only, on purpose.</p>
+
+      <div class="cmd-card" id="pro-access">
+        <div class="cmd-head"><span class="cmd-syntax">Request Pro access</span></div>
+        <p class="cmd-desc">Every new signup starts on a private demo project — enough to explore, but capped and yours alone. To create a real project, request Pro access from the dashboard sidebar (or the banner on your demo project). Fill in your name and email — everything else is optional — and it goes to an admin to approve. The sidebar shows <strong>Request Pro access</strong> until you're approved, then <strong>You have Pro</strong>.</p>
+      </div>
+
+      <div class="cmd-card" id="create-project">
+        <div class="cmd-head"><span class="cmd-syntax">Create a project</span></div>
+        <p class="cmd-desc">Once approved, a banner appears on your demo project: give the new project a name and create it. It's a fresh, fully independent project — your demo project is untouched and still there to explore in. If Pro access is ever revoked, the project is locked (not deleted) until it's granted again.</p>
+      </div>
+
+      <div class="cmd-card" id="invite-members">
+        <div class="cmd-head"><span class="cmd-syntax">Add members</span></div>
+        <p class="cmd-desc">From a project's Members page, any admin on that project can add someone by typing their email — no invite link, no waiting. They need to already have a Parabola account (ask them to sign up first if they don't); once added, they're a full member of that project, mentionable in <code>/assign</code> and everywhere else in Discord.</p>
+      </div>
+    </section>
+
+    <div class="note">Everything else — changing a task's status, viewing the roadmap and activity log — lives on <a href="https://parabolaa.vercel.app/dashboard">the website</a> too.</div>
 
     <footer>
       <span>Parabola Discord bot</span>

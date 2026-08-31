@@ -33,27 +33,21 @@ export const discordCommands = [
     description: "Connect your Discord account to your Parabola login.",
   },
   {
-    name: "setup",
-    description: "Link this server to one of your Parabola projects.",
-    options: [
-      {
-        name: "project",
-        description: "Which project to link this server to",
-        type: 3,
-        required: true,
-        autocomplete: true,
-      },
-    ],
-  },
-  {
     name: "task",
-    description: "View work items in this server's linked project.",
+    description: "View work items in one of your projects.",
     options: [
       {
         name: "list",
         description: "List work items.",
         type: 1,
         options: [
+          {
+            name: "project",
+            description: "Which project (defaults to your only project, if you have just one)",
+            type: 3,
+            required: false,
+            autocomplete: true,
+          },
           { name: "status", description: "Filter by status", type: 3, required: false, choices: STATUS_CHOICES },
           { name: "assignee", description: "Filter by assignee", type: 6, required: false },
         ],
@@ -62,7 +56,16 @@ export const discordCommands = [
         name: "view",
         description: "Show a work item's full detail.",
         type: 1,
-        options: [{ name: "id", description: "Task number", type: 4, required: true }],
+        options: [
+          { name: "id", description: "Task number", type: 4, required: true },
+          {
+            name: "project",
+            description: "Which project (defaults to your only project, if you have just one)",
+            type: 3,
+            required: false,
+            autocomplete: true,
+          },
+        ],
       },
     ],
   },
@@ -70,6 +73,13 @@ export const discordCommands = [
     name: "board",
     description: "See the whole work item board, or just one column.",
     options: [
+      {
+        name: "project",
+        description: "Which project (defaults to your only project, if you have just one)",
+        type: 3,
+        required: false,
+        autocomplete: true,
+      },
       {
         name: "column",
         description: "Show just this column instead of the whole board",
@@ -87,7 +97,7 @@ export const discordCommands = [
       { name: "work", description: "What the task is", type: 3, required: true },
       {
         name: "project",
-        description: "Which project (defaults to this server's linked project)",
+        description: "Which project (defaults to your only project, if you have just one)",
         type: 3,
         required: false,
         autocomplete: true,

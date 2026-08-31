@@ -9,7 +9,6 @@ import {
   workItems,
   workItemAssignees,
 } from "@/lib/db/schema";
-import { isProjectAdmin } from "@/lib/project-access";
 import { getProjectDemoState, assertDemoCreationAllowed, incrementDemoUsage } from "@/lib/demo";
 import { logActivity } from "@/lib/activity";
 import { getDeadlineStatus, deadlineUrgencyRank } from "@/lib/deadline";
@@ -30,26 +29,6 @@ async function resolveMentionedUsers(text: string): Promise<{ found: DiscordUser
   if (discordIds.length === 0) return { found: [], unlinkedCount: 0 };
   const found = await db.select().from(users).where(inArray(users.discordUserId, discordIds));
   return { found, unlinkedCount: discordIds.length - found.length };
-}
-
-// ============ /setup ============
-
-export async function handleSetup(discordUser: DiscordUser, guildId: string, project: DiscordProject): Promise<CommandReply> {
-  if (!(await isProjectAdmin(discordUser.id, project.id))) {
-    return fail("You need to be an admin on that project to link a server to it.");
-  }
-
-  await db.update(projects).set({ discordGuildId: guildId }).where(eq(projects.id, project.id));
-  await logActivity({
-    actorId: discordUser.id,
-    projectId: project.id,
-    action: "project.discord_linked",
-    entityType: "project",
-    entityId: project.id,
-    searchText: `Linked Discord server to "${project.name}"`,
-  });
-
-  return { embeds: [buildEmbed({ title: "Server linked", description: `This server is now linked to **${project.name}**. \`/task\` and \`/assign\` default to this project from here on.`, color: SUCCESS_COLOR })] };
 }
 
 // ============ /task list ============
