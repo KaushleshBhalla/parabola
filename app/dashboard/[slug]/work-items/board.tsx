@@ -26,16 +26,17 @@ import { WorkItemDetailDialog } from "./work-item-detail-dialog";
 import { MoveWorkItemDialog, type PendingMove } from "./move-work-item-dialog";
 
 // Entering these columns requires a comment explaining the update; entering
-// Done is gated separately (assignor-only, requires a quality score) in
-// handleDragEnd below.
-const COMMENT_REQUIRED_STATUSES: BoardItem["status"][] = ["in_progress", "in_review"];
+// Done is gated separately (assignor-only, requires a comment and a quality
+// score, regardless of which of these it's coming from) in handleDragEnd
+// below.
+const COMMENT_REQUIRED_STATUSES: BoardItem["status"][] = ["in_progress", "in_review", "review"];
 
 export type BoardItem = {
   id: string;
   number: number;
   title: string;
   priority: "none" | "low" | "medium" | "high" | "urgent";
-  status: "backlog" | "todo" | "in_progress" | "in_review" | "done" | "cancelled";
+  status: "backlog" | "todo" | "in_progress" | "in_review" | "review" | "done" | "cancelled";
   assignees: { id: string; name: string }[];
   dueDate: string | null;
   position: number;
@@ -50,6 +51,7 @@ const MAIN_COLUMNS: { status: BoardItem["status"]; label: string }[] = [
   { status: "todo", label: "Todo" },
   { status: "in_progress", label: formatStatusLabel("in_progress") },
   { status: "in_review", label: formatStatusLabel("in_review") },
+  { status: "review", label: formatStatusLabel("review") },
   { status: "done", label: "Done" },
 ];
 
@@ -225,7 +227,7 @@ export function WorkItemsBoard({
       onDragEnd={handleDragEnd}
     >
       <div className="flex h-full gap-3 px-4 py-3">
-        <div className="grid min-w-0 flex-1 grid-cols-5 gap-3">
+        <div className="grid min-w-0 flex-1 grid-cols-6 gap-3">
           {MAIN_COLUMNS.map((col) => (
             <Column
               key={col.status}

@@ -49,20 +49,24 @@ export function MoveWorkItemDialog({
 
   function handleConfirm() {
     if (!pending) return;
+    const trimmedComment = comment.trim();
+    if (!trimmedComment) {
+      setError(
+        pending.mode === "done"
+          ? "Add a closing comment before marking it done."
+          : `A comment is required to move this to ${pending.targetLabel}.`
+      );
+      return;
+    }
     if (pending.mode === "comment") {
-      const trimmed = comment.trim();
-      if (!trimmed) {
-        setError("A comment is required to move this to " + pending.targetLabel + ".");
-        return;
-      }
-      onConfirm({ comment: trimmed });
+      onConfirm({ comment: trimmedComment });
     } else {
       const parsed = Number(score);
       if (!Number.isInteger(parsed) || parsed < 1 || parsed > 10) {
         setError("Enter a whole number score from 1 to 10.");
         return;
       }
-      onConfirm({ qualityScore: parsed, comment: comment.trim() || undefined });
+      onConfirm({ qualityScore: parsed, comment: trimmedComment });
     }
     reset();
   }
@@ -78,7 +82,7 @@ export function MoveWorkItemDialog({
               </DialogTitle>
               <DialogDescription>
                 {pending.mode === "done"
-                  ? `Rate the work on "${pending.itemTitle}" before closing it out.`
+                  ? `Rate the work and leave a closing comment on "${pending.itemTitle}" before closing it out.`
                   : `Add a quick note on what changed for "${pending.itemTitle}".`}
               </DialogDescription>
             </DialogHeader>
@@ -103,7 +107,7 @@ export function MoveWorkItemDialog({
 
             <div className="flex flex-col gap-1.5">
               <label htmlFor="move-comment" className="text-xs font-medium text-muted-foreground">
-                Comment{pending.mode === "comment" ? "" : " (optional)"}
+                {pending.mode === "done" ? "Closing comment" : "Comment"}
               </label>
               <Textarea
                 id="move-comment"

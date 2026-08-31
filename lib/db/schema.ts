@@ -23,11 +23,16 @@ export const userRoleEnum = pgEnum("user_role", [
   "viewer",
 ]);
 
+// "in_review" displays as "Testing Pending" and "review" displays as
+// "In Review" — see lib/work-items.ts. Confusing pair of names, kept only
+// because in_review already shipped under that DB value; "review" is the
+// newer column that sits between Testing Pending and Done.
 export const workItemStatusEnum = pgEnum("work_item_status", [
   "backlog",
   "todo",
   "in_progress",
   "in_review",
+  "review",
   "done",
   "cancelled",
 ]);

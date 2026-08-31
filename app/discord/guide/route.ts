@@ -221,7 +221,7 @@ const html = `<!doctype html>
         </div>
         <p class="cmd-desc">A filtered slice of this server's linked project as a compact list — narrow it to one status column or one person's queue.</p>
         <div class="params">
-          <span class="p-name">status</span><span class="p-desc">Backlog · Todo · In Progress · Testing Pending · Done · Cancelled.</span>
+          <span class="p-name">status</span><span class="p-desc">Backlog · Todo · In Progress · Testing Pending · In Review · Done · Cancelled.</span>
           <span class="p-name">assignee</span><span class="p-desc">Limit to one teammate's tasks.</span>
         </div>
       </div>
@@ -244,7 +244,7 @@ const html = `<!doctype html>
         </div>
         <p class="cmd-desc">A snapshot of the whole board — every column, with counts — or pass <code>column</code> to zoom into just one (e.g. Todo, In Progress, Testing Pending).</p>
         <div class="params">
-          <span class="p-name">column</span><span class="p-desc">Backlog · Todo · In Progress · Testing Pending · Done · Cancelled. Leave it out to see everything.</span>
+          <span class="p-name">column</span><span class="p-desc">Backlog · Todo · In Progress · Testing Pending · In Review · Done · Cancelled. Leave it out to see everything.</span>
         </div>
       </div>
 

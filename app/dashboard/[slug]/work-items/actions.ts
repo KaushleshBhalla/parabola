@@ -24,10 +24,16 @@ const STATUSES = [
   "todo",
   "in_progress",
   "in_review",
+  "review",
   "done",
   "cancelled",
 ] as const;
 type Status = (typeof STATUSES)[number];
+
+// Entering any of these requires a comment explaining the update. "done" is
+// gated separately below (assignor-only, requires both a comment and a
+// quality score).
+const COMMENT_REQUIRED_STATUSES: readonly Status[] = ["in_progress", "in_review", "review"];
 
 const PRIORITIES = ["none", "low", "medium", "high", "urgent"] as const;
 type Priority = (typeof PRIORITIES)[number];
@@ -139,11 +145,13 @@ export async function createWorkItem(
  * as the midpoint of its new neighbors, or ±POSITION_GAP at a column edge).
  * Handles both cross-column moves and same-column reordering.
  *
- * Entering Todo -> In Progress -> Testing Pending requires a note (`extra.comment`)
- * explaining the update. Entering Done is restricted to whoever created the
- * task (the assignor) and requires a quality score out of 10 for the work —
- * either passed in now (`extra.qualityScore`) or already set on the item.
- * Callers without the required extra should collect it first (see
+ * Entering In Progress -> Testing Pending -> In Review requires a note
+ * (`extra.comment`) explaining the update. Entering Done is restricted to
+ * whoever created the task (the assignor, regardless of which column it's
+ * coming from — an assignee can never drag it there) and requires both a
+ * closing comment and a quality score out of 10 for the work, passed in now
+ * (`extra.comment` / `extra.qualityScore`) or the score already set on the
+ * item. Callers without the required extra should collect it first (see
  * move-work-item-dialog.tsx) and retry; a same-column reorder (status
  * unchanged) skips all of this.
  */
@@ -181,6 +189,9 @@ export async function moveWorkItem(
       if (item.createdBy !== user.id) {
         return { error: "Only the person who created this task can mark it done." };
       }
+      if (!comment) {
+        return { error: "Add a closing comment before marking it done." };
+      }
       const score = extra?.qualityScore ?? item.qualityScore ?? undefined;
       if (score == null) {
         return { error: "Rate the work out of 10 before marking it done." };
@@ -189,7 +200,7 @@ export async function moveWorkItem(
         return { error: "Score must be a whole number between 1 and 10." };
       }
       qualityScore = score;
-    } else if (status === "in_progress" || status === "in_review") {
+    } else if (COMMENT_REQUIRED_STATUSES.includes(status as Status)) {
       if (!comment) {
         return { error: "Add a comment about this update before moving it." };
       }

@@ -11,6 +11,7 @@ const STATUS_CHOICES = [
   { name: "Todo", value: "todo" },
   { name: "In Progress", value: "in_progress" },
   { name: "Testing Pending", value: "in_review" },
+  { name: "In Review", value: "review" },
   { name: "Done", value: "done" },
   { name: "Cancelled", value: "cancelled" },
 ];

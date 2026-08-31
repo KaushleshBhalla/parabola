@@ -14,7 +14,7 @@ type Row = {
   id: string;
   number: number;
   title: string;
-  status: "backlog" | "todo" | "in_progress" | "in_review" | "done" | "cancelled";
+  status: "backlog" | "todo" | "in_progress" | "in_review" | "review" | "done" | "cancelled";
   priority: "none" | "low" | "medium" | "high" | "urgent";
   dueDate: string | null;
   projectId: string;

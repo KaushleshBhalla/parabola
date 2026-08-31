@@ -106,6 +106,7 @@ const BOARD_COLUMNS: { status: string; label: string }[] = [
   { status: "todo", label: "Todo" },
   { status: "in_progress", label: "In Progress" },
   { status: "in_review", label: "Testing Pending" },
+  { status: "review", label: "In Review" },
   { status: "done", label: "Done" },
   { status: "cancelled", label: "Cancelled" },
 ];
