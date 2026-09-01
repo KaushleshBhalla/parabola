@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { formatDistanceToNow } from "date-fns";
+import { Pencil, Trash2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -13,15 +15,26 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { formatStatusLabel } from "@/lib/work-items";
 import {
   getWorkItemDetail,
   addWorkItemComment,
   setWorkItemQualityScore,
+  updateWorkItem,
+  deleteWorkItem,
 } from "./actions";
 import { AssignWorkItemDialog } from "./assign-work-item-dialog";
 
 type Detail = NonNullable<Awaited<ReturnType<typeof getWorkItemDetail>>>;
+
+const PRIORITIES = ["none", "low", "medium", "high", "urgent"] as const;
 
 export function WorkItemDetailDialog({
   workItemId,
@@ -36,19 +49,27 @@ export function WorkItemDetailDialog({
   onOpenChange: (open: boolean) => void;
   assignees: { id: string; name: string }[];
 }) {
+  const router = useRouter();
   const [detail, setDetail] = useState<Detail | null>(null);
   const [commentBody, setCommentBody] = useState("");
   const [commentError, setCommentError] = useState<string | null>(null);
   const [scoreInput, setScoreInput] = useState("");
   const [scoreError, setScoreError] = useState<string | null>(null);
   const [dismissedPrompt, setDismissedPrompt] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [editTitle, setEditTitle] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editPriority, setEditPriority] = useState<(typeof PRIORITIES)[number]>("none");
+  const [editError, setEditError] = useState<string | null>(null);
   const [, startTransition] = useTransition();
+  const [deleting, startDeleteTransition] = useTransition();
 
   useEffect(() => {
     if (!open) return;
     getWorkItemDetail(workItemId).then((d) => {
       setDetail(d);
       setDismissedPrompt(false);
+      setEditing(false);
     });
   }, [open, workItemId]);
 
@@ -83,6 +104,45 @@ export function WorkItemDetailDialog({
     refresh();
   }
 
+  function startEditing() {
+    if (!detail) return;
+    setEditTitle(detail.item.title);
+    setEditDescription(detail.item.description ?? "");
+    setEditPriority(detail.item.priority);
+    setEditError(null);
+    setEditing(true);
+  }
+
+  async function handleSaveEdit() {
+    const title = editTitle.trim();
+    if (!title) {
+      setEditError("Title is required.");
+      return;
+    }
+    setEditError(null);
+    await updateWorkItem(workItemId, slug, {
+      title,
+      description: editDescription,
+      priority: editPriority,
+    });
+    setEditing(false);
+    refresh();
+  }
+
+  function handleDelete() {
+    if (!detail) return;
+    if (!window.confirm(`Delete "#${detail.item.number} ${detail.item.title}"? This can't be undone.`)) return;
+    startDeleteTransition(async () => {
+      const result = await deleteWorkItem(workItemId, slug);
+      if (result?.error) {
+        setEditError(result.error);
+        return;
+      }
+      onOpenChange(false);
+      router.refresh();
+    });
+  }
+
   if (!open) return null;
 
   return (
@@ -94,12 +154,77 @@ export function WorkItemDetailDialog({
       >
         {!detail ? (
           <p className="py-8 text-center text-sm text-muted-foreground">Loading…</p>
-        ) : (
+        ) : editing ? (
           <div className="flex flex-col gap-4">
             <DialogHeader>
+              <DialogTitle>Edit #{detail.item.number}</DialogTitle>
+            </DialogHeader>
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="edit-title" className="text-xs font-medium text-muted-foreground">
+                Title
+              </label>
+              <Input id="edit-title" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} autoFocus />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="edit-description" className="text-xs font-medium text-muted-foreground">
+                Description
+              </label>
+              <Textarea
+                id="edit-description"
+                value={editDescription}
+                onChange={(e) => setEditDescription(e.target.value)}
+                rows={3}
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="edit-priority" className="text-xs font-medium text-muted-foreground">
+                Priority
+              </label>
+              <Select value={editPriority} onValueChange={(v) => setEditPriority(v as (typeof PRIORITIES)[number])}>
+                <SelectTrigger id="edit-priority" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PRIORITIES.map((p) => (
+                    <SelectItem key={p} value={p} className="capitalize">
+                      {p}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {editError && <p className="text-sm text-destructive">{editError}</p>}
+            <div className="flex justify-end gap-2">
+              <Button size="sm" variant="ghost" onClick={() => setEditing(false)}>
+                Cancel
+              </Button>
+              <Button size="sm" onClick={handleSaveEdit}>
+                Save
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-4">
+            <DialogHeader className="flex-row items-start justify-between gap-2 space-y-0">
               <DialogTitle>
                 #{detail.item.number} {detail.item.title}
               </DialogTitle>
+              <div className="flex items-center gap-1">
+                <Button size="icon-sm" variant="ghost" title="Edit" onClick={startEditing}>
+                  <Pencil className="size-3.5" />
+                </Button>
+                {detail.canDelete && (
+                  <Button
+                    size="icon-sm"
+                    variant="ghost"
+                    title="Delete"
+                    disabled={deleting}
+                    onClick={handleDelete}
+                  >
+                    <Trash2 className="size-3.5 text-destructive" />
+                  </Button>
+                )}
+              </div>
             </DialogHeader>
 
             <div className="flex flex-wrap items-center gap-2 text-xs">
@@ -111,6 +236,8 @@ export function WorkItemDetailDialog({
                 <Badge>{detail.item.qualityScore}/10</Badge>
               )}
             </div>
+
+            {editError && <p className="text-sm text-destructive">{editError}</p>}
 
             {detail.item.description && (
               <p className="text-sm text-muted-foreground">{detail.item.description}</p>

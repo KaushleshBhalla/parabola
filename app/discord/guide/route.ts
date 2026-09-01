@@ -240,15 +240,17 @@ const html = `<!doctype html>
 
       <div class="cmd-card" id="assign">
         <div class="cmd-head">
-          <span class="cmd-syntax">/assign <span class="opt">mentions work [project] [priority] [deadline]</span></span>
+          <span class="cmd-syntax">/assign <span class="opt">person1 [person2-5] [work_item] [work] [project] [priority] [deadline]</span></span>
           <span class="badge everyone">Everyone</span>
         </div>
-        <p class="cmd-desc">Creates a new task and assigns it to whoever you mention. Everything but the mentions and the work itself is optional. Everyone you mention needs to already be a member of that project — see <a href="#invite-members">Add members</a> below if they aren't yet.</p>
+        <p class="cmd-desc">Two modes in one command. Pass <code>work_item</code> (pick from the list — any status, not just fresh tasks) to add people to a task that already exists, leaving everything else about it alone. Leave <code>work_item</code> out and pass <code>work</code> instead to create a brand new task (starts in Todo) assigned to whoever you pick. Either way, everyone needs to already be a member of that project — see <a href="#invite-members">Add members</a> below if they aren't yet. <code>person1</code>-<code>person5</code> are real Discord member pickers, not a text field — that's deliberate, since typing "@name" into a plain text box never actually resolves to that person.</p>
         <div class="params">
-          <span class="p-name">mentions<span class="p-req">•</span></span><span class="p-desc">One or more @mentions — each needs to be a member of the project and have run /link.</span>
-          <span class="p-name">work<span class="p-req">•</span></span><span class="p-desc">What the task is — becomes its title.</span>
+          <span class="p-name">person1<span class="p-req">•</span></span><span class="p-desc">Pick from the server's member list. Needs to be a project member and have run /link.</span>
+          <span class="p-name">person2-5</span><span class="p-desc">Up to 4 more people, same way.</span>
+          <span class="p-name">work_item</span><span class="p-desc">An existing task to add assignees to. Pick from the list — every suggestion shows its number, title, and current status.</span>
+          <span class="p-name">work</span><span class="p-desc">What the task is — becomes its title. Required when not passing work_item.</span>
           <span class="p-name">project</span><span class="p-desc">Which project (autocomplete).</span>
-          <span class="p-name">priority</span><span class="p-desc">Low · Medium · High.</span>
+          <span class="p-name">priority</span><span class="p-desc">Low · Medium · High. Applies whether creating or reassigning.</span>
           <span class="p-name">deadline</span><span class="p-desc"><code>2d</code>, <code>5hr</code>, <code>1w</code>, or <code>YYYY-MM-DD</code>. Due dates only track a calendar date, not a time of day, so anything under 24h just rounds to today (or tomorrow, right around midnight).</span>
         </div>
       </div>

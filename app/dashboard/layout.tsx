@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { desc, eq } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import {
   LayoutGrid,
   LogOut,
@@ -28,6 +29,9 @@ export default async function DashboardLayout({
 }) {
   const user = await requireUser();
 
+  const workItemProjects = alias(projects, "work_item_projects");
+  const directProjects = alias(projects, "direct_projects");
+
   const [myProjects, notificationRows, isPro] = await Promise.all([
     db
       .select({ id: projectMembers.projectId })
@@ -37,14 +41,17 @@ export default async function DashboardLayout({
     db
       .select({
         id: notifications.id,
+        type: notifications.type,
         body: notifications.body,
         isRead: notifications.isRead,
         createdAt: notifications.createdAt,
-        projectSlug: projects.slug,
+        workItemProjectSlug: workItemProjects.slug,
+        directProjectSlug: directProjects.slug,
       })
       .from(notifications)
       .leftJoin(workItems, eq(notifications.workItemId, workItems.id))
-      .leftJoin(projects, eq(workItems.projectId, projects.id))
+      .leftJoin(workItemProjects, eq(workItems.projectId, workItemProjects.id))
+      .leftJoin(directProjects, eq(notifications.projectId, directProjects.id))
       .where(eq(notifications.userId, user.id))
       .orderBy(desc(notifications.createdAt))
       .limit(15),
@@ -55,13 +62,11 @@ export default async function DashboardLayout({
   const canManageTeam = hasRole(user.role, "admin");
   const isOwner = hasRole(user.role, "owner");
 
-  const notificationItems: NotificationItem[] = notificationRows.map((n) => ({
-    id: n.id,
-    body: n.body,
-    isRead: n.isRead,
-    createdAt: n.createdAt,
-    href: n.projectSlug ? `/dashboard/${n.projectSlug}/work-items` : null,
-  }));
+  const notificationItems: NotificationItem[] = notificationRows.map((n) => {
+    const slug = n.workItemProjectSlug ?? n.directProjectSlug;
+    const href = !slug ? null : n.type === "project_join_request" ? `/dashboard/${slug}/members` : `/dashboard/${slug}/work-items`;
+    return { id: n.id, body: n.body, isRead: n.isRead, createdAt: n.createdAt, href };
+  });
   const unreadCount = notificationItems.filter((n) => !n.isRead).length;
 
   return (

@@ -97,10 +97,21 @@ export const discordCommands = [
   },
   {
     name: "assign",
-    description: "Create a task and assign it to one or more people.",
+    description: "Assign people to a task — new or existing, in any status.",
     options: [
-      { name: "mentions", description: "Mention everyone who should be assigned", type: 3, required: true },
-      { name: "work", description: "What the task is", type: 3, required: true },
+      { name: "person1", description: "Who to assign", type: 6, required: true },
+      { name: "person2", description: "Another person, if any", type: 6, required: false },
+      { name: "person3", description: "Another person, if any", type: 6, required: false },
+      { name: "person4", description: "Another person, if any", type: 6, required: false },
+      { name: "person5", description: "Another person, if any", type: 6, required: false },
+      {
+        name: "work_item",
+        description: "An existing task to add assignees to — pick from the list. Leave out to create a new task instead.",
+        type: 3,
+        required: false,
+        autocomplete: true,
+      },
+      { name: "work", description: "What the task is (required when not reassigning an existing one)", type: 3, required: false },
       {
         name: "project",
         description: "Which project (defaults to your only project, if you have just one)",

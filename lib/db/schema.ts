@@ -62,6 +62,8 @@ export const notificationTypeEnum = pgEnum("notification_type", [
   "work_item_assigned",
   "due_date_changed",
   "work_item_cancelled",
+  "work_item_status_changed",
+  "project_join_request",
 ]);
 
 export const paymentStatusEnum = pgEnum("payment_status", [
@@ -585,6 +587,11 @@ export const notifications = pgTable(
     type: notificationTypeEnum("type").notNull(),
     body: text("body").notNull(),
     workItemId: uuid("work_item_id").references(() => workItems.id, {
+      onDelete: "cascade",
+    }),
+    // For notifications that point at a project rather than one work item
+    // (e.g. a new join request) — workItemId's own project is used when set.
+    projectId: uuid("project_id").references(() => projects.id, {
       onDelete: "cascade",
     }),
     isRead: boolean("is_read").notNull().default(false),

@@ -13,12 +13,6 @@ export async function resolveUserByDiscordId(discordUserId: string) {
   return user ?? null;
 }
 
-/** Discord mention strings look like <@123456> or <@!123456> (nickname form). */
-export function extractMentionedDiscordIds(text: string): string[] {
-  const matches = text.matchAll(/<@!?(\d+)>/g);
-  return [...new Set([...matches].map((m) => m[1]))];
-}
-
 /** Every project a user belongs to — backs the `project` autocomplete everywhere it appears. */
 export async function listUserProjects(userId: string, query?: string) {
   return db

@@ -1,5 +1,5 @@
 import "server-only";
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import {
   users,
@@ -10,13 +10,14 @@ import {
   workItems,
   workItemAssignees,
   workItemComments,
+  notifications,
 } from "@/lib/db/schema";
 import { isProjectAdmin } from "@/lib/project-access";
 import { getProjectDemoState, assertDemoCreationAllowed, incrementDemoUsage } from "@/lib/demo";
 import { logActivity } from "@/lib/activity";
 import { getDeadlineStatus, deadlineUrgencyRank } from "@/lib/deadline";
 import { formatStatusLabel } from "@/lib/work-items";
-import { extractMentionedDiscordIds, resolveProjectWorkItem } from "./resolve";
+import { resolveProjectWorkItem } from "./resolve";
 import { parseDeadlineInput } from "./deadline-parse";
 import { parseMeetingTime } from "./meeting-time";
 import { buildEmbed, DANGER_COLOR, SUCCESS_COLOR } from "./embeds";
@@ -29,8 +30,15 @@ function fail(message: string): CommandReply {
   return { embeds: [buildEmbed({ title: "Couldn't do that", description: message, color: DANGER_COLOR })], ephemeral: true };
 }
 
-async function resolveMentionedUsers(text: string): Promise<{ found: DiscordUser[]; unlinkedCount: number }> {
-  const discordIds = extractMentionedDiscordIds(text);
+/**
+ * Resolves the fixed person1..5 USER options on /assign to linked Parabola
+ * accounts. These are real Discord user picks (option type 6), not free
+ * text — a plain STRING field never gets Discord's member-picker UI, so
+ * typing "@name" there stays literal text and never parses as a mention;
+ * that was the bug behind /assign always failing with "mention someone
+ * who's linked" even for people who definitely had.
+ */
+async function resolveMentionedUsers(discordIds: string[]): Promise<{ found: DiscordUser[]; unlinkedCount: number }> {
   if (discordIds.length === 0) return { found: [], unlinkedCount: 0 };
   const found = await db.select().from(users).where(inArray(users.discordUserId, discordIds));
   return { found, unlinkedCount: discordIds.length - found.length };
@@ -185,27 +193,20 @@ export async function handleTaskView(project: DiscordProject, args: { input: str
 
 const PRIORITIES = ["low", "medium", "high"] as const;
 
+/**
+ * One command, two modes: pass `workItemInput` to add assignees to an
+ * existing task (any status, not just fresh ones) — everything else about
+ * it (title, status) is left alone. Leave it out to create a brand new task
+ * (status Todo) the way /assign always used to work. Either way, `priority`
+ * and `deadline` apply if given.
+ */
 export async function handleAssign(
   user: DiscordUser,
   project: DiscordProject,
-  args: { mentions: string; work: string; priority?: string; deadline?: string }
+  args: { personDiscordIds: string[]; workItemInput?: string; work?: string; priority?: string; deadline?: string }
 ): Promise<CommandReply> {
-  const demoState = await getProjectDemoState(project.id);
-  const demoBlocked = assertDemoCreationAllowed(demoState);
-  if (demoBlocked) return fail(demoBlocked);
-
-  const priority = args.priority && (PRIORITIES as readonly string[]).includes(args.priority) ? args.priority : "none";
-  const { found: assignees, unlinkedCount } = await resolveMentionedUsers(args.mentions);
-  if (assignees.length === 0) return fail("Mention at least one person who's linked their Parabola account with `/link`.");
-
-  let dueDate: string | null = null;
-  let deadlineRounded = false;
-  if (args.deadline) {
-    const parsed = parseDeadlineInput(args.deadline);
-    if ("error" in parsed) return fail(parsed.error);
-    dueDate = parsed.date;
-    deadlineRounded = parsed.rounded;
-  }
+  const { found: assignees, unlinkedCount } = await resolveMentionedUsers(args.personDiscordIds);
+  if (assignees.length === 0) return fail("Pick at least one person who's linked their Parabola account with `/link`.");
 
   const memberIds = new Set(
     (
@@ -222,6 +223,82 @@ export async function handleAssign(
     );
   }
 
+  let dueDate: string | null | undefined;
+  let deadlineRounded = false;
+  if (args.deadline) {
+    const parsed = parseDeadlineInput(args.deadline);
+    if ("error" in parsed) return fail(parsed.error);
+    dueDate = parsed.date;
+    deadlineRounded = parsed.rounded;
+  }
+  const priority =
+    args.priority && (PRIORITIES as readonly string[]).includes(args.priority)
+      ? (args.priority as "low" | "medium" | "high")
+      : undefined;
+
+  if (args.workItemInput) {
+    const item = await resolveProjectWorkItem(project.id, args.workItemInput);
+    if (!item) return fail(`Couldn't find "${args.workItemInput}" in ${project.name}.`);
+
+    const current = await db
+      .select({ userId: workItemAssignees.userId })
+      .from(workItemAssignees)
+      .where(eq(workItemAssignees.workItemId, item.id));
+    const currentIds = new Set(current.map((c) => c.userId));
+    const toAdd = assignees.filter((a) => !currentIds.has(a.id));
+
+    const update: { priority?: "none" | "low" | "medium" | "high" | "urgent"; dueDate?: string | null; updatedAt: Date } = {
+      updatedAt: new Date(),
+    };
+    if (priority) update.priority = priority;
+    if (dueDate !== undefined) update.dueDate = dueDate;
+    if (Object.keys(update).length > 1) {
+      await db.update(workItems).set(update).where(eq(workItems.id, item.id));
+    }
+
+    if (toAdd.length > 0) {
+      await db.insert(workItemAssignees).values(toAdd.map((a) => ({ workItemId: item.id, userId: a.id, assignedBy: user.id })));
+      const notifyIds = toAdd.map((a) => a.id).filter((id) => id !== user.id);
+      if (notifyIds.length > 0) {
+        await db.insert(notifications).values(
+          notifyIds.map((userId) => ({
+            userId,
+            type: "work_item_assigned" as const,
+            body: `You were assigned "${item.title}".`,
+            workItemId: item.id,
+          }))
+        );
+      }
+    }
+
+    await logActivity({
+      actorId: user.id,
+      projectId: project.id,
+      action: "work_item.assigned",
+      entityType: "work_item",
+      entityId: item.id,
+      after: { addedAssigneeIds: toAdd.map((a) => a.id) },
+      searchText: `Assigned "#${item.number} ${item.title}" via Discord`,
+    });
+
+    const allAssignees = [...current.map((c) => c.userId), ...toAdd.map((a) => a.id)];
+    return {
+      embeds: [
+        buildEmbed({
+          title: `#${item.number} ${item.title}`,
+          description: `${toAdd.length > 0 ? `Added ${toAdd.map((a) => a.name).join(", ")}. ` : ""}Now assigned to ${allAssignees.length} ${allAssignees.length === 1 ? "person" : "people"} total, still ${formatStatusLabel(item.status)}.${dueDate ? `\nDue ${dueDate}${deadlineRounded ? " (rounded — deadlines only track a date, not a time of day)" : ""}.` : ""}${unlinkedCount > 0 ? `\n\n_${unlinkedCount} mentioned user${unlinkedCount === 1 ? "" : "s"} haven't run \`/link\` yet, so they weren't added._` : ""}`,
+          color: SUCCESS_COLOR,
+        }),
+      ],
+    };
+  }
+
+  if (!args.work) return fail("Pass `work` — what the task is — or `work_item` to add assignees to an existing one instead.");
+
+  const demoState = await getProjectDemoState(project.id);
+  const demoBlocked = assertDemoCreationAllowed(demoState);
+  if (demoBlocked) return fail(demoBlocked);
+
   const [counter] = await db
     .update(projectCounters)
     .set({ nextNumber: sql`${projectCounters.nextNumber} + 1` })
@@ -235,8 +312,8 @@ export async function handleAssign(
       number: counter.nextNumber - 1,
       title: args.work,
       status: "todo",
-      priority: priority as "none" | "low" | "medium" | "high",
-      dueDate,
+      priority: priority ?? "none",
+      dueDate: dueDate ?? null,
       position: Date.now(),
       createdBy: user.id,
     })
@@ -245,6 +322,17 @@ export async function handleAssign(
   await db.insert(workItemAssignees).values(
     assignees.map((a) => ({ workItemId: item.id, userId: a.id, assignedBy: user.id }))
   );
+  const notifyIds = assignees.map((a) => a.id).filter((id) => id !== user.id);
+  if (notifyIds.length > 0) {
+    await db.insert(notifications).values(
+      notifyIds.map((userId) => ({
+        userId,
+        type: "work_item_assigned" as const,
+        body: `You were assigned "${item.title}".`,
+        workItemId: item.id,
+      }))
+    );
+  }
 
   if (demoState?.isDemo) {
     await incrementDemoUsage(project.id);
@@ -256,7 +344,7 @@ export async function handleAssign(
     action: "work_item.created",
     entityType: "work_item",
     entityId: item.id,
-    after: { title: args.work, priority, assigneeIds: assignees.map((a) => a.id) },
+    after: { title: args.work, priority: priority ?? "none", assigneeIds: assignees.map((a) => a.id) },
     searchText: `Created "#${item.number} ${args.work}" via Discord`,
   });
 
@@ -306,6 +394,15 @@ export async function handleProgress(
 
   await db.update(workItems).set({ status: next, updatedAt: new Date() }).where(eq(workItems.id, item.id));
   await db.insert(workItemComments).values({ workItemId: item.id, authorId: user.id, body: args.comment });
+
+  if (item.createdBy && item.createdBy !== user.id) {
+    await db.insert(notifications).values({
+      userId: item.createdBy,
+      type: "work_item_status_changed",
+      body: `"#${item.number} ${item.title}" moved to ${formatStatusLabel(next)} by ${user.name}.`,
+      workItemId: item.id,
+    });
+  }
 
   await logActivity({
     actorId: user.id,
@@ -384,7 +481,7 @@ export async function handleMyTasks(user: DiscordUser): Promise<CommandReply> {
     .select({ number: workItems.number, title: workItems.title, status: workItems.status, dueDate: workItems.dueDate, projectName: projects.name })
     .from(workItems)
     .innerJoin(projects, eq(workItems.projectId, projects.id))
-    .where(inArray(workItems.id, myIds));
+    .where(and(inArray(workItems.id, myIds), isNull(projects.archivedAt), isNull(projects.ownerArchivedAt)));
 
   const sorted = rows.sort((a, b) => deadlineUrgencyRank(getDeadlineStatus(a.dueDate, a.status)) - deadlineUrgencyRank(getDeadlineStatus(b.dueDate, b.status)));
 

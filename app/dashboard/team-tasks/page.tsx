@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import { workItems, workItemAssignees, projects, users, projectMembers } from "@/lib/db/schema";
 import { requireUser, hasRole } from "@/lib/auth/rbac";
@@ -60,7 +60,11 @@ export default async function TeamTasksPage() {
         .innerJoin(projects, eq(workItems.projectId, projects.id))
         .innerJoin(users, eq(workItemAssignees.userId, users.id))
         .where(
-          visibleProjectIds ? inArray(workItems.projectId, visibleProjectIds) : undefined
+          and(
+            visibleProjectIds ? inArray(workItems.projectId, visibleProjectIds) : undefined,
+            isNull(projects.archivedAt),
+            isNull(projects.ownerArchivedAt)
+          )
         );
 
   const itemsById = new Map<string, Row>();

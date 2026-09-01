@@ -16,3 +16,12 @@ export async function markNotificationsRead() {
     );
   revalidatePath("/dashboard", "layout");
 }
+
+export async function markNotificationRead(notificationId: string) {
+  const user = await requireUser();
+  await db
+    .update(notifications)
+    .set({ isRead: true })
+    .where(and(eq(notifications.id, notificationId), eq(notifications.userId, user.id)));
+  revalidatePath("/dashboard", "layout");
+}

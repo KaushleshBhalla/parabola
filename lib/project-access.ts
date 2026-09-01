@@ -9,6 +9,7 @@ import {
   projectJoinRequests,
   users,
   accessRequests,
+  notifications,
 } from "@/lib/db/schema";
 import { seedDemoProject } from "@/lib/demo/seed";
 
@@ -17,6 +18,21 @@ import { seedDemoProject } from "@/lib/demo/seed";
  * admin on that project's membership row. Replaces the whole
  * roles/permissions/organization system — one flat check, per project.
  */
+async function getProjectAdminIds(projectId: string): Promise<string[]> {
+  const [project] = await db
+    .select({ createdBy: projects.createdBy })
+    .from(projects)
+    .where(eq(projects.id, projectId))
+    .limit(1);
+
+  const memberAdmins = await db
+    .select({ userId: projectMembers.userId })
+    .from(projectMembers)
+    .where(and(eq(projectMembers.projectId, projectId), eq(projectMembers.isAdmin, true)));
+
+  return [...new Set([project?.createdBy, ...memberAdmins.map((m) => m.userId)].filter((id): id is string => !!id))];
+}
+
 export async function isProjectAdmin(userId: string, projectId: string): Promise<boolean> {
   const [project] = await db
     .select({ createdBy: projects.createdBy })
@@ -216,10 +232,27 @@ export async function requestToJoinProject(userId: string, code: string): Promis
     return { status: "approved", project: { id: project.id, name: project.name, slug: project.slug } };
   }
 
-  await db
+  const [inserted] = await db
     .insert(projectJoinRequests)
     .values({ projectId: project.id, userId })
-    .onConflictDoNothing();
+    .onConflictDoNothing()
+    .returning({ id: projectJoinRequests.id });
+
+  if (inserted) {
+    const [requester] = await db.select({ name: users.name }).from(users).where(eq(users.id, userId)).limit(1);
+    const adminIds = (await getProjectAdminIds(project.id)).filter((id) => id !== userId);
+    if (adminIds.length > 0) {
+      await db.insert(notifications).values(
+        adminIds.map((adminId) => ({
+          userId: adminId,
+          type: "project_join_request" as const,
+          body: `${requester?.name ?? "Someone"} asked to join "${project.name}".`,
+          projectId: project.id,
+        }))
+      );
+    }
+  }
+
   return { status: "pending", project: { id: project.id, name: project.name } };
 }
 

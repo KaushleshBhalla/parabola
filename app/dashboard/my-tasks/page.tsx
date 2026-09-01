@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import { workItems, workItemAssignees, projects, projectMembers, users } from "@/lib/db/schema";
 import { requireUser } from "@/lib/auth/rbac";
@@ -38,7 +38,13 @@ export default async function MyTasksPage() {
             })
             .from(workItems)
             .innerJoin(projects, eq(workItems.projectId, projects.id))
-            .where(inArray(workItems.id, myItemIds)),
+            .where(
+              and(
+                inArray(workItems.id, myItemIds),
+                isNull(projects.archivedAt),
+                isNull(projects.ownerArchivedAt)
+              )
+            ),
           db
             .select({
               workItemId: workItemAssignees.workItemId,

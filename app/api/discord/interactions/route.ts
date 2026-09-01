@@ -77,7 +77,7 @@ function guideEmbed() {
       "**/task list [project] [status] [assignee]** — list work items in one of your projects.",
       "**/task view id:<#> [project]** — show one task's full detail.",
       "**/board [project] [column]** — see the whole board (every column) at a glance, or just one column (Todo, In Progress, Testing Pending, etc.).",
-      "**/assign mentions:<@people> work:<title> [project] [priority] [deadline]** — create a task, assigned and in Todo. `deadline` takes `2d`, `5hr`, `1w`, or `YYYY-MM-DD`.",
+      "**/assign person1:<@who> [person2-5] [work_item] [work] [project] [priority] [deadline]** — two modes in one command: pass `work_item` (autocomplete, any status) to add people to an existing task, or `work` to create a new one (starts in Todo). Up to 5 people, picked from the member list (not free text). `deadline` takes `2d`, `5hr`, `1w`, or `YYYY-MM-DD`.",
       "**/progress project:<name> work_item:<#> comment:<text>** — move a task one step forward (Todo/In Progress → Testing Pending → In Review) with a required comment. Everything here is required, unlike elsewhere.",
       "**/setmeet time:<e.g. 10pm today> timezone:<e.g. Indian> [project] [title]** — schedule a meeting; I'll ping every project member, right here, 5 minutes before. Project admins only.",
       "`project` is optional everywhere else above (autocomplete over every project you're in) — it defaults to your only project if you're just in one, otherwise you'll be asked to pick.",
@@ -108,11 +108,10 @@ async function routeAutocomplete(interaction: {
 
   if (focused.name === "id" || focused.name === "work_item") {
     const { args } = flattenOptions(interaction.data.options);
-    const projectInput = args.project ? String(args.project) : "";
-    if (!projectInput) return { choices: [{ name: "Pick a project first…", value: "" }] };
-    const project = await resolveUserProject(user.id, projectInput);
-    if (!project) return { choices: [] };
-    const items = await listProjectWorkItemChoices(project.id, query || undefined);
+    const projectInput = args.project ? String(args.project) : undefined;
+    const resolved = await resolveCommandProject(user.id, projectInput);
+    if ("error" in resolved) return { choices: [{ name: resolved.error.slice(0, 100), value: "" }] };
+    const items = await listProjectWorkItemChoices(resolved.project.id, query || undefined);
     return { choices: items.map((i) => ({ name: i.label, value: i.id })) };
   }
 
@@ -173,9 +172,13 @@ async function routeCommand(interaction: {
   if (commandName === "assign") {
     const resolved = await resolveCommandProject(user.id, args.project ? String(args.project) : undefined);
     if ("error" in resolved) return fail(resolved.error);
+    const personDiscordIds = [args.person1, args.person2, args.person3, args.person4, args.person5]
+      .filter((v): v is string | number => v !== undefined)
+      .map(String);
     return handleAssign(user, resolved.project, {
-      mentions: String(args.mentions ?? ""),
-      work: String(args.work ?? ""),
+      personDiscordIds,
+      workItemInput: args.work_item ? String(args.work_item) : undefined,
+      work: args.work ? String(args.work) : undefined,
       priority: args.priority ? String(args.priority) : undefined,
       deadline: args.deadline ? String(args.deadline) : undefined,
     });

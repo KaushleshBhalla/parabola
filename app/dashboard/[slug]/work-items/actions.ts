@@ -12,7 +12,9 @@ import {
   users,
 } from "@/lib/db/schema";
 import { requireUser, canAccessProject, hasRole } from "@/lib/auth/rbac";
+import { isProjectAdmin } from "@/lib/project-access";
 import { logActivity } from "@/lib/activity";
+import { formatStatusLabel } from "@/lib/work-items";
 import {
   getProjectDemoState,
   assertDemoCreationAllowed,
@@ -222,13 +224,22 @@ export async function moveWorkItem(
   }
 
   if (isTransition) {
-    if (status === "cancelled" && item.createdBy !== user.id) {
-      await db.insert(notifications).values({
-        userId: item.createdBy,
-        type: "work_item_cancelled",
-        body: `"#${item.number} ${item.title}" was cancelled.`,
-        workItemId,
-      });
+    if (item.createdBy && item.createdBy !== user.id) {
+      if (status === "cancelled") {
+        await db.insert(notifications).values({
+          userId: item.createdBy,
+          type: "work_item_cancelled",
+          body: `"#${item.number} ${item.title}" was cancelled.`,
+          workItemId,
+        });
+      } else {
+        await db.insert(notifications).values({
+          userId: item.createdBy,
+          type: "work_item_status_changed",
+          body: `"#${item.number} ${item.title}" moved to ${formatStatusLabel(status)} by ${user.name}.`,
+          workItemId,
+        });
+      }
     }
     await logActivity({
       actorId: user.id,
@@ -447,6 +458,41 @@ export async function updateWorkItem(
   revalidatePath("/dashboard/team-tasks");
 }
 
+/** Destructive — restricted to whoever created the task or a project admin. */
+export async function deleteWorkItem(
+  workItemId: string,
+  slug: string
+): Promise<{ error: string } | undefined> {
+  const user = await requireUser();
+
+  const [item] = await db
+    .select({ projectId: workItems.projectId, title: workItems.title, number: workItems.number, createdBy: workItems.createdBy })
+    .from(workItems)
+    .where(eq(workItems.id, workItemId))
+    .limit(1);
+  if (!item) return { error: "Work item not found." };
+  if (!(await canAccessProject(user, item.projectId))) return { error: "You don't have access to this project." };
+  if (item.createdBy !== user.id && !(await isProjectAdmin(user.id, item.projectId))) {
+    return { error: "Only the creator or a project admin can delete this task." };
+  }
+
+  await db.delete(workItems).where(eq(workItems.id, workItemId));
+
+  await logActivity({
+    actorId: user.id,
+    projectId: item.projectId,
+    action: "work_item.deleted",
+    entityType: "work_item",
+    entityId: workItemId,
+    before: { title: item.title },
+    searchText: `Deleted "#${item.number} ${item.title}"`,
+  });
+
+  revalidatePath(`/dashboard/${slug}/work-items`);
+  revalidatePath("/dashboard/my-tasks");
+  revalidatePath("/dashboard/team-tasks");
+}
+
 export async function getWorkItemDetail(workItemId: string) {
   const user = await requireUser();
 
@@ -478,7 +524,14 @@ export async function getWorkItemDetail(workItemId: string) {
       .where(eq(workItemAssignees.workItemId, workItemId)),
   ]);
 
-  return { item, comments, assignees, isCreator: item.createdBy === user.id };
+  const isCreator = item.createdBy === user.id;
+  return {
+    item,
+    comments,
+    assignees,
+    isCreator,
+    canDelete: isCreator || (await isProjectAdmin(user.id, item.projectId)),
+  };
 }
 
 export async function setWorkItemQualityScore(
