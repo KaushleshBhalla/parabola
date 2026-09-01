@@ -121,5 +121,21 @@ export const discordCommands = [
       { name: "comment", description: "What's the update", type: 3, required: true },
     ],
   },
+  {
+    name: "setmeet",
+    description: "Schedule a meeting for a project — pings everyone here 5 minutes before.",
+    options: [
+      { name: "time", description: "e.g. 10pm today, 10:30pm tomorrow, 22:00", type: 3, required: true },
+      { name: "timezone", description: "e.g. Indian, UTC, Eastern, Pacific, or an IANA zone", type: 3, required: true },
+      {
+        name: "project",
+        description: "Which project (defaults to your only project, if you have just one)",
+        type: 3,
+        required: false,
+        autocomplete: true,
+      },
+      { name: "title", description: "What the meeting is about", type: 3, required: false },
+    ],
+  },
   { name: "mytasks", description: "Your assigned tasks across every project, most urgent first." },
 ];

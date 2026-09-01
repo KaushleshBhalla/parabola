@@ -291,6 +291,32 @@ export const projectJoinRequests = pgTable(
   ]
 );
 
+// A project-wide meeting set via Discord's /setmeet. discordChannelId is
+// wherever /setmeet was run — that's where the 5-minutes-before reminder
+// gets posted, mentioning every project member individually. reminderSentAt
+// null means still pending; the reminder sweep (see
+// app/api/cron/meeting-reminders/route.ts) sets it once sent, so a meeting
+// is only ever pinged once even if the sweep runs more than once inside its
+// due window.
+export const projectMeetings = pgTable(
+  "project_meetings",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    scheduledBy: uuid("scheduled_by")
+      .notNull()
+      .references(() => users.id),
+    title: text("title"),
+    scheduledAt: timestamp("scheduled_at", { withTimezone: true }).notNull(),
+    discordChannelId: text("discord_channel_id").notNull(),
+    reminderSentAt: timestamp("reminder_sent_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("project_meetings_due_idx").on(table.scheduledAt, table.reminderSentAt)]
+);
+
 // ============ LABELS ============
 
 export const labels = pgTable(

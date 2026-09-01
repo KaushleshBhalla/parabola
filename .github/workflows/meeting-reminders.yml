@@ -1,0 +1,27 @@
+name: Meeting reminders
+
+# Vercel's own Cron Jobs only run once a day on the Hobby plan, which can't
+# deliver a "5 minutes before" ping — so this workflow polls the reminder
+# endpoint every 5 minutes instead. GitHub's schedule isn't second-precise
+# (a tick can slip by several minutes under load), and the endpoint's own
+# due-window is intentionally wider than 5 minutes to absorb that, so nobody
+# gets missed — see app/api/cron/meeting-reminders/route.ts.
+#
+# Requires a repo secret named CRON_SECRET matching the CRON_SECRET
+# environment variable set on the Vercel project (Settings -> Environment
+# Variables). Without it, this workflow still runs but the request is
+# unauthenticated — fine only if CRON_SECRET is unset on Vercel too.
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check for meetings starting soon
+        run: |
+          curl --fail --silent --show-error \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://parabolaa.vercel.app/api/cron/meeting-reminders"

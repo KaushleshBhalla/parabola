@@ -6,16 +6,19 @@ import {
   projects,
   projectCounters,
   projectMembers,
+  projectMeetings,
   workItems,
   workItemAssignees,
   workItemComments,
 } from "@/lib/db/schema";
+import { isProjectAdmin } from "@/lib/project-access";
 import { getProjectDemoState, assertDemoCreationAllowed, incrementDemoUsage } from "@/lib/demo";
 import { logActivity } from "@/lib/activity";
 import { getDeadlineStatus, deadlineUrgencyRank } from "@/lib/deadline";
 import { formatStatusLabel } from "@/lib/work-items";
 import { extractMentionedDiscordIds, resolveProjectWorkItem } from "./resolve";
 import { parseDeadlineInput } from "./deadline-parse";
+import { parseMeetingTime } from "./meeting-time";
 import { buildEmbed, DANGER_COLOR, SUCCESS_COLOR } from "./embeds";
 
 export type CommandReply = { content?: string; embeds?: unknown[]; ephemeral?: boolean };
@@ -320,6 +323,51 @@ export async function handleProgress(
       buildEmbed({
         title: `#${item.number} ${item.title}`,
         description: `${formatStatusLabel(item.status)} → **${formatStatusLabel(next)}**\n\n${args.comment}`,
+        color: SUCCESS_COLOR,
+      }),
+    ],
+  };
+}
+
+// ============ /setmeet ============
+
+export async function handleSetMeet(
+  user: DiscordUser,
+  project: DiscordProject,
+  args: { channelId: string; time: string; timezone: string; title?: string }
+): Promise<CommandReply> {
+  if (!(await isProjectAdmin(user.id, project.id))) {
+    return fail("You need to be an admin on that project to schedule a meeting for it.");
+  }
+
+  const parsed = parseMeetingTime(args.time, args.timezone);
+  if ("error" in parsed) return fail(parsed.error);
+
+  await db.insert(projectMeetings).values({
+    projectId: project.id,
+    scheduledBy: user.id,
+    title: args.title || null,
+    scheduledAt: parsed.utc,
+    discordChannelId: args.channelId,
+  });
+
+  const unixSeconds = Math.floor(parsed.utc.getTime() / 1000);
+
+  await logActivity({
+    actorId: user.id,
+    projectId: project.id,
+    action: "project_meeting.scheduled",
+    entityType: "project",
+    entityId: project.id,
+    after: { scheduledAt: parsed.utc.toISOString(), title: args.title },
+    searchText: `Scheduled a meeting${args.title ? ` ("${args.title}")` : ""} for "${project.name}" via Discord`,
+  });
+
+  return {
+    embeds: [
+      buildEmbed({
+        title: `Meeting set for ${project.name}${args.title ? ` — ${args.title}` : ""}`,
+        description: `<t:${unixSeconds}:F> (<t:${unixSeconds}:R>). I'll ping everyone on the project right here, 5 minutes before.`,
         color: SUCCESS_COLOR,
       }),
     ],

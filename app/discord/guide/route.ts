@@ -128,6 +128,7 @@ const html = `<!doctype html>
       <a class="nav-link" href="#board"><span class="hash">/</span>board</a>
       <a class="nav-link" href="#assign"><span class="hash">/</span>assign</a>
       <a class="nav-link" href="#progress"><span class="hash">/</span>progress</a>
+      <a class="nav-link" href="#setmeet"><span class="hash">/</span>setmeet</a>
       <a class="nav-link" href="#mytasks"><span class="hash">/</span>mytasks</a>
     </div>
     <div class="nav-group">
@@ -148,7 +149,7 @@ const html = `<!doctype html>
       <h1 class="title">Parabola for Discord</h1>
       <p class="lede">Parabola, wherever your team already is. It keeps things deliberately minimal — check tasks, create and assign new ones, from Discord, across every project you're in. Creating projects and adding members lives on the website.</p>
       <div class="stat-row">
-        <div class="stat"><b>7</b><span>Slash commands</span></div>
+        <div class="stat"><b>8</b><span>Slash commands</span></div>
         <div class="stat"><b>All</b><span>Your projects, one bot</span></div>
       </div>
     </div>
@@ -262,6 +263,20 @@ const html = `<!doctype html>
           <span class="p-name">project<span class="p-req">•</span></span><span class="p-desc">Which project (autocomplete) — not optional here, unlike elsewhere.</span>
           <span class="p-name">work_item<span class="p-req">•</span></span><span class="p-desc">Pick from the list — every suggestion shows its number, title, and current status, e.g. "#3 Fix login bug — Testing Pending".</span>
           <span class="p-name">comment<span class="p-req">•</span></span><span class="p-desc">What changed. Always required.</span>
+        </div>
+      </div>
+
+      <div class="cmd-card" id="setmeet">
+        <div class="cmd-head">
+          <span class="cmd-syntax">/setmeet <span class="opt">time timezone [project] [title]</span></span>
+          <span class="badge perm">Project admins</span>
+        </div>
+        <p class="cmd-desc">Schedules a meeting for a project. Five minutes before it starts, Parabola posts right back in whichever channel you ran this in, mentioning every project member individually (skipping anyone who hasn't run <code>/link</code> yet). That reminder is only ever approximately on time — it's driven by a background check that runs every few minutes, not a live timer, so treat "5 minutes before" as "close to 5 minutes before."</p>
+        <div class="params">
+          <span class="p-name">time<span class="p-req">•</span></span><span class="p-desc">e.g. <code>10pm today</code>, <code>10:30pm tomorrow</code>, <code>22:00</code>. No day word defaults to today, rolling to tomorrow automatically if that time already passed.</span>
+          <span class="p-name">timezone<span class="p-req">•</span></span><span class="p-desc">e.g. <code>Indian</code>, <code>UTC</code>, <code>Eastern</code>, <code>Pacific</code>, or any IANA zone like <code>Asia/Kolkata</code>.</span>
+          <span class="p-name">project</span><span class="p-desc">Which project (autocomplete).</span>
+          <span class="p-name">title</span><span class="p-desc">What the meeting is about.</span>
         </div>
       </div>
 

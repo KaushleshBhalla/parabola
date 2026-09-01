@@ -17,6 +17,7 @@ import {
   handleBoard,
   handleAssign,
   handleProgress,
+  handleSetMeet,
   handleMyTasks,
 } from "@/lib/discord/handlers";
 
@@ -78,6 +79,7 @@ function guideEmbed() {
       "**/board [project] [column]** — see the whole board (every column) at a glance, or just one column (Todo, In Progress, Testing Pending, etc.).",
       "**/assign mentions:<@people> work:<title> [project] [priority] [deadline]** — create a task, assigned and in Todo. `deadline` takes `2d`, `5hr`, `1w`, or `YYYY-MM-DD`.",
       "**/progress project:<name> work_item:<#> comment:<text>** — move a task one step forward (Todo/In Progress → Testing Pending → In Review) with a required comment. Everything here is required, unlike elsewhere.",
+      "**/setmeet time:<e.g. 10pm today> timezone:<e.g. Indian> [project] [title]** — schedule a meeting; I'll ping every project member, right here, 5 minutes before. Project admins only.",
       "`project` is optional everywhere else above (autocomplete over every project you're in) — it defaults to your only project if you're just in one, otherwise you'll be asked to pick.",
       "**/mytasks** — your assigned tasks across every project you're in.",
       "",
@@ -118,6 +120,7 @@ async function routeAutocomplete(interaction: {
 }
 
 async function routeCommand(interaction: {
+  channel_id?: string;
   member?: { user?: { id: string; username: string; global_name?: string | null } };
   user?: { id: string; username: string; global_name?: string | null };
   data: { name: string; options?: RawOption[] };
@@ -216,6 +219,18 @@ async function routeCommand(interaction: {
     if (!comment) return fail("Pass a `comment`.");
 
     return handleProgress(user, project, { workItemInput, comment });
+  }
+
+  if (commandName === "setmeet") {
+    if (!interaction.channel_id) return fail("This command only works inside a server channel.");
+    const resolved = await resolveCommandProject(user.id, args.project ? String(args.project) : undefined);
+    if ("error" in resolved) return fail(resolved.error);
+    return handleSetMeet(user, resolved.project, {
+      channelId: interaction.channel_id,
+      time: String(args.time ?? ""),
+      timezone: String(args.timezone ?? ""),
+      title: args.title ? String(args.title) : undefined,
+    });
   }
 
   return fail("Unknown command.");
