@@ -85,6 +85,8 @@ const html = `<!doctype html>
   .badge.perm { background: var(--warning-soft); color: var(--warning); }
   .badge.everyone { background: var(--success-soft); color: var(--success); }
   .cmd-desc { color: var(--text-dim); font-size: 14px; margin: 10px 0 14px; }
+  .invite-btn { display: inline-flex; align-items: center; gap: 8px; background: var(--accent); color: var(--accent-ink); font-weight: 600; font-size: 14px; padding: 10px 18px; border-radius: 9px; text-decoration: none; }
+  .invite-btn:hover { opacity: 0.92; }
   .params { display: grid; grid-template-columns: auto 1fr; gap: 5px 16px; font-size: 13px; margin-bottom: 14px; }
   .params .p-name { font-family: var(--mono); color: var(--text); white-space: nowrap; }
   .params .p-desc { color: var(--text-dim); }
@@ -125,6 +127,7 @@ const html = `<!doctype html>
       <a class="nav-link" href="#task-view"><span class="hash">/</span>task view</a>
       <a class="nav-link" href="#board"><span class="hash">/</span>board</a>
       <a class="nav-link" href="#assign"><span class="hash">/</span>assign</a>
+      <a class="nav-link" href="#progress"><span class="hash">/</span>progress</a>
       <a class="nav-link" href="#mytasks"><span class="hash">/</span>mytasks</a>
     </div>
     <div class="nav-group">
@@ -156,7 +159,8 @@ const html = `<!doctype html>
 
       <div class="cmd-card">
         <div class="cmd-head"><span class="cmd-syntax">Step 1 — Invite the bot to your server</span></div>
-        <p class="cmd-desc">Get an invite link from whoever runs your Parabola instance, open it, and pick your server. It needs the <code>bot</code> and <code>applications.commands</code> scopes to work at all.</p>
+        <p class="cmd-desc">One click adds it as a real member of your server (not just its commands) and registers every command below — both happen in this one authorization.</p>
+        <a class="invite-btn" href="https://discord.com/oauth2/authorize?client_id=1543380430831624222&amp;permissions=0&amp;scope=bot%20applications.commands" target="_blank" rel="noopener">Add Parabola to Discord</a>
       </div>
 
       <div class="cmd-card" id="link">
@@ -194,7 +198,7 @@ const html = `<!doctype html>
 
     <section class="category" id="tasks-heading">
       <div class="category-head"><h2>Tasks</h2></div>
-      <p class="category-desc">Every command below takes an optional <code>project</code> (autocomplete over every project you're in). Leave it out and it defaults to your only project if you're just in one — if you're in several, you'll be asked to pick. <code>/assign</code> creates a task and assigns it — the only way to add work from Discord.</p>
+      <p class="category-desc">Every command below except <code>/progress</code> takes an optional <code>project</code> (autocomplete over every project you're in) — leave it out and it defaults to your only project if you're just in one, or asks you to pick if you're in several. <code>/assign</code> creates and assigns a task; <code>/progress</code> is how it moves forward from there — Discord's only two ways to change anything, everything else here is read-only.</p>
 
       <div class="cmd-card" id="task-list">
         <div class="cmd-head">
@@ -214,9 +218,9 @@ const html = `<!doctype html>
           <span class="cmd-syntax">/task view <span class="opt">id [project]</span></span>
           <span class="badge everyone">Everyone</span>
         </div>
-        <p class="cmd-desc">The full detail view — description, every assignee, priority, and due date.</p>
+        <p class="cmd-desc">The full detail view — description, every assignee, priority, current status, and due date.</p>
         <div class="params">
-          <span class="p-name">id<span class="p-req">•</span></span><span class="p-desc">The task number, e.g. <code>14</code>.</span>
+          <span class="p-name">id<span class="p-req">•</span></span><span class="p-desc">Type a number or pick from the list — every suggestion shows its number, title, and current status.</span>
           <span class="p-name">project</span><span class="p-desc">Which project (autocomplete).</span>
         </div>
       </div>
@@ -244,7 +248,20 @@ const html = `<!doctype html>
           <span class="p-name">work<span class="p-req">•</span></span><span class="p-desc">What the task is — becomes its title.</span>
           <span class="p-name">project</span><span class="p-desc">Which project (autocomplete).</span>
           <span class="p-name">priority</span><span class="p-desc">Low · Medium · High.</span>
-          <span class="p-name">deadline</span><span class="p-desc">YYYY-MM-DD, optional.</span>
+          <span class="p-name">deadline</span><span class="p-desc"><code>2d</code>, <code>5hr</code>, <code>1w</code>, or <code>YYYY-MM-DD</code>. Due dates only track a calendar date, not a time of day, so anything under 24h just rounds to today (or tomorrow, right around midnight).</span>
+        </div>
+      </div>
+
+      <div class="cmd-card" id="progress">
+        <div class="cmd-head">
+          <span class="cmd-syntax">/progress <span class="opt">project work_item comment</span></span>
+          <span class="badge perm">All three required</span>
+        </div>
+        <p class="cmd-desc">Moves a task one step forward and leaves your comment on it — the only way to advance work from Discord. Todo and In Progress both advance straight to Testing Pending; Testing Pending advances to In Review. In Review is as far as this goes — turning something Done needs the project's creator to review and score it, from the website.</p>
+        <div class="params">
+          <span class="p-name">project<span class="p-req">•</span></span><span class="p-desc">Which project (autocomplete) — not optional here, unlike elsewhere.</span>
+          <span class="p-name">work_item<span class="p-req">•</span></span><span class="p-desc">Pick from the list — every suggestion shows its number, title, and current status, e.g. "#3 Fix login bug — Testing Pending".</span>
+          <span class="p-name">comment<span class="p-req">•</span></span><span class="p-desc">What changed. Always required.</span>
         </div>
       </div>
 

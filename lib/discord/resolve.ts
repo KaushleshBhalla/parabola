@@ -1,7 +1,8 @@
 import "server-only";
-import { and, eq, ilike, or } from "drizzle-orm";
+import { and, desc, eq, ilike, or } from "drizzle-orm";
 import { db } from "@/lib/db/client";
-import { projects, projectMembers, users } from "@/lib/db/schema";
+import { projects, projectMembers, users, workItems } from "@/lib/db/schema";
+import { formatStatusLabel } from "@/lib/work-items";
 
 export async function resolveUserByDiscordId(discordUserId: string) {
   const [user] = await db
@@ -82,4 +83,55 @@ export async function resolveCommandProject(
   const project = await resolveUserProject(userId, mine[0].id);
   if (!project) return { error: "Couldn't load your project — try again." };
   return { project };
+}
+
+/**
+ * Resolves whatever a user typed into a work-item option — the autocomplete
+ * suggestion's id if they picked one, or a free-typed task number (with or
+ * without a leading "#") — scoped to one already-known project.
+ */
+export async function resolveProjectWorkItem(projectId: string, input: string) {
+  const trimmed = input.trim();
+  if (UUID_RE.test(trimmed)) {
+    const [item] = await db
+      .select()
+      .from(workItems)
+      .where(and(eq(workItems.id, trimmed), eq(workItems.projectId, projectId)))
+      .limit(1);
+    return item ?? null;
+  }
+
+  const number = parseInt(trimmed.replace(/^#/, ""), 10);
+  if (Number.isNaN(number)) return null;
+  const [item] = await db
+    .select()
+    .from(workItems)
+    .where(and(eq(workItems.number, number), eq(workItems.projectId, projectId)))
+    .limit(1);
+  return item ?? null;
+}
+
+/**
+ * Work-item choices for a project's autocomplete — every suggestion always
+ * shows the task number, title, AND current status together (e.g.
+ * "#3 Fix login bug — Testing Pending") so picking one never means picking
+ * blind.
+ */
+export async function listProjectWorkItemChoices(projectId: string, query?: string) {
+  const rows = await db
+    .select({ id: workItems.id, number: workItems.number, title: workItems.title, status: workItems.status })
+    .from(workItems)
+    .where(eq(workItems.projectId, projectId))
+    .orderBy(desc(workItems.updatedAt))
+    .limit(100);
+
+  const q = (query ?? "").trim().toLowerCase().replace(/^#/, "");
+  const matches = q
+    ? rows.filter((r) => String(r.number).includes(q) || r.title.toLowerCase().includes(q))
+    : rows;
+
+  return matches.slice(0, 25).map((r) => ({
+    id: r.id,
+    label: `#${r.number} ${r.title} — ${formatStatusLabel(r.status)}`.slice(0, 100),
+  }));
 }

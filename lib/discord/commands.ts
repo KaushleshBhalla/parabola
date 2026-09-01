@@ -57,7 +57,13 @@ export const discordCommands = [
         description: "Show a work item's full detail.",
         type: 1,
         options: [
-          { name: "id", description: "Task number", type: 4, required: true },
+          {
+            name: "id",
+            description: "Task number or pick from the list",
+            type: 3,
+            required: true,
+            autocomplete: true,
+          },
           {
             name: "project",
             description: "Which project (defaults to your only project, if you have just one)",
@@ -103,7 +109,16 @@ export const discordCommands = [
         autocomplete: true,
       },
       { name: "priority", description: "Priority", type: 3, required: false, choices: PRIORITY_CHOICES },
-      { name: "deadline", description: "Deadline, YYYY-MM-DD", type: 3, required: false },
+      { name: "deadline", description: "e.g. 2d, 5hr, 1w, or YYYY-MM-DD", type: 3, required: false },
+    ],
+  },
+  {
+    name: "progress",
+    description: "Move a work item forward one step and leave a comment. All three are required.",
+    options: [
+      { name: "project", description: "Which project", type: 3, required: true, autocomplete: true },
+      { name: "work_item", description: "Which task — pick from the list", type: 3, required: true, autocomplete: true },
+      { name: "comment", description: "What's the update", type: 3, required: true },
     ],
   },
   { name: "mytasks", description: "Your assigned tasks across every project, most urgent first." },

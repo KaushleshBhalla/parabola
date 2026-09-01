@@ -1,3 +1,6 @@
 {
-  "regions": ["hnd1"]
+  "regions": ["hnd1"],
+  "crons": [
+    { "path": "/api/cron/expire-deadlines", "schedule": "0 0 * * *" }
+  ]
 }

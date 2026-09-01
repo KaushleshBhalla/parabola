@@ -8,12 +8,14 @@ import {
   projectMembers,
   workItems,
   workItemAssignees,
+  workItemComments,
 } from "@/lib/db/schema";
 import { getProjectDemoState, assertDemoCreationAllowed, incrementDemoUsage } from "@/lib/demo";
 import { logActivity } from "@/lib/activity";
 import { getDeadlineStatus, deadlineUrgencyRank } from "@/lib/deadline";
 import { formatStatusLabel } from "@/lib/work-items";
-import { extractMentionedDiscordIds } from "./resolve";
+import { extractMentionedDiscordIds, resolveProjectWorkItem } from "./resolve";
+import { parseDeadlineInput } from "./deadline-parse";
 import { buildEmbed, DANGER_COLOR, SUCCESS_COLOR } from "./embeds";
 
 export type CommandReply = { content?: string; embeds?: unknown[]; ephemeral?: boolean };
@@ -150,13 +152,9 @@ export async function handleBoard(project: DiscordProject, args: { column?: stri
 
 // ============ /task view ============
 
-export async function handleTaskView(project: DiscordProject, args: { id: number }): Promise<CommandReply> {
-  const [item] = await db
-    .select()
-    .from(workItems)
-    .where(and(eq(workItems.projectId, project.id), eq(workItems.number, args.id)))
-    .limit(1);
-  if (!item) return fail(`No task #${args.id} in ${project.name}.`);
+export async function handleTaskView(project: DiscordProject, args: { input: string }): Promise<CommandReply> {
+  const item = await resolveProjectWorkItem(project.id, args.input);
+  if (!item) return fail(`Couldn't find "${args.input}" in ${project.name}.`);
 
   const assignees = await db
     .select({ name: users.name })
@@ -197,6 +195,15 @@ export async function handleAssign(
   const { found: assignees, unlinkedCount } = await resolveMentionedUsers(args.mentions);
   if (assignees.length === 0) return fail("Mention at least one person who's linked their Parabola account with `/link`.");
 
+  let dueDate: string | null = null;
+  let deadlineRounded = false;
+  if (args.deadline) {
+    const parsed = parseDeadlineInput(args.deadline);
+    if ("error" in parsed) return fail(parsed.error);
+    dueDate = parsed.date;
+    deadlineRounded = parsed.rounded;
+  }
+
   const memberIds = new Set(
     (
       await db
@@ -224,8 +231,9 @@ export async function handleAssign(
       projectId: project.id,
       number: counter.nextNumber - 1,
       title: args.work,
+      status: "todo",
       priority: priority as "none" | "low" | "medium" | "high",
-      dueDate: args.deadline || null,
+      dueDate,
       position: Date.now(),
       createdBy: user.id,
     })
@@ -253,7 +261,65 @@ export async function handleAssign(
     embeds: [
       buildEmbed({
         title: `#${item.number} ${item.title}`,
-        description: `Created in **${project.name}** and assigned to ${assignees.map((a) => a.name).join(", ")}.${args.deadline ? `\nDue ${args.deadline}.` : ""}${unlinkedCount > 0 ? `\n\n_${unlinkedCount} mentioned user${unlinkedCount === 1 ? "" : "s"} haven't run \`/link\` yet, so they weren't assigned._` : ""}`,
+        description: `Created in **${project.name}**, status **Todo**, assigned to ${assignees.map((a) => a.name).join(", ")}.${dueDate ? `\nDue ${dueDate}${deadlineRounded ? " (deadlines only track a date, not a time of day, so an hour-based deadline rounds to this)" : ""}.` : ""}${unlinkedCount > 0 ? `\n\n_${unlinkedCount} mentioned user${unlinkedCount === 1 ? "" : "s"} haven't run \`/link\` yet, so they weren't assigned._` : ""}`,
+        color: SUCCESS_COLOR,
+      }),
+    ],
+  };
+}
+
+// ============ /progress ============
+
+// Discord's single-step progression: Todo and In Progress both advance
+// straight to Testing Pending (the website's board still has a distinct
+// In Progress column reachable by drag-and-drop; /progress just doesn't
+// stop there) — then Testing Pending -> In Review. In Review is the last
+// step /progress can take; moving to Done needs the project creator to
+// review and score the work, which only the website supports right now.
+const PROGRESS_STEPS: Record<string, "todo" | "in_review" | "review"> = {
+  backlog: "todo",
+  todo: "in_review",
+  in_progress: "in_review",
+  in_review: "review",
+};
+
+export async function handleProgress(
+  user: DiscordUser,
+  project: DiscordProject,
+  args: { workItemInput: string; comment: string }
+): Promise<CommandReply> {
+  const item = await resolveProjectWorkItem(project.id, args.workItemInput);
+  if (!item) return fail(`Couldn't find "${args.workItemInput}" in ${project.name}.`);
+
+  const next = PROGRESS_STEPS[item.status];
+  if (!next) {
+    if (item.status === "review") {
+      return fail(
+        `**#${item.number} ${item.title}** is already In Review — moving it to Done needs ${project.name}'s creator to review and score the work, from the website.`
+      );
+    }
+    return fail(`**#${item.number} ${item.title}** is ${formatStatusLabel(item.status)} — nothing to progress.`);
+  }
+
+  await db.update(workItems).set({ status: next, updatedAt: new Date() }).where(eq(workItems.id, item.id));
+  await db.insert(workItemComments).values({ workItemId: item.id, authorId: user.id, body: args.comment });
+
+  await logActivity({
+    actorId: user.id,
+    projectId: project.id,
+    action: "work_item.status_changed",
+    entityType: "work_item",
+    entityId: item.id,
+    before: { status: item.status },
+    after: { status: next },
+    searchText: `Moved "#${item.number} ${item.title}" from ${item.status} to ${next} via Discord`,
+  });
+
+  return {
+    embeds: [
+      buildEmbed({
+        title: `#${item.number} ${item.title}`,
+        description: `${formatStatusLabel(item.status)} → **${formatStatusLabel(next)}**\n\n${args.comment}`,
         color: SUCCESS_COLOR,
       }),
     ],

@@ -6,7 +6,9 @@ import { buildEmbed, DANGER_COLOR } from "@/lib/discord/embeds";
 import {
   resolveUserByDiscordId,
   resolveCommandProject,
+  resolveUserProject,
   listUserProjects,
+  listProjectWorkItemChoices,
 } from "@/lib/discord/resolve";
 import {
   type CommandReply,
@@ -14,6 +16,7 @@ import {
   handleTaskView,
   handleBoard,
   handleAssign,
+  handleProgress,
   handleMyTasks,
 } from "@/lib/discord/handlers";
 
@@ -73,8 +76,9 @@ function guideEmbed() {
       "**/task list [project] [status] [assignee]** — list work items in one of your projects.",
       "**/task view id:<#> [project]** — show one task's full detail.",
       "**/board [project] [column]** — see the whole board (every column) at a glance, or just one column (Todo, In Progress, Testing Pending, etc.).",
-      "**/assign mentions:<@people> work:<title> [project] [priority] [deadline]** — create a task and assign it.",
-      "`project` is optional everywhere above (autocomplete over every project you're in) — it defaults to your only project if you're just in one, otherwise you'll be asked to pick.",
+      "**/assign mentions:<@people> work:<title> [project] [priority] [deadline]** — create a task, assigned and in Todo. `deadline` takes `2d`, `5hr`, `1w`, or `YYYY-MM-DD`.",
+      "**/progress project:<name> work_item:<#> comment:<text>** — move a task one step forward (Todo/In Progress → Testing Pending → In Review) with a required comment. Everything here is required, unlike elsewhere.",
+      "`project` is optional everywhere else above (autocomplete over every project you're in) — it defaults to your only project if you're just in one, otherwise you'll be asked to pick.",
       "**/mytasks** — your assigned tasks across every project you're in.",
       "",
       `[Full guide with screenshots](${APP_URL}/discord/guide)`,
@@ -89,15 +93,28 @@ async function routeAutocomplete(interaction: {
 }) {
   const discordUserId = interaction.member?.user?.id ?? interaction.user?.id;
   const focused = findFocusedOption(interaction.data.options);
-  if (!discordUserId || !focused || focused.name !== "project") {
-    return { choices: [] };
-  }
+  if (!discordUserId || !focused) return { choices: [] };
   const user = await resolveUserByDiscordId(discordUserId);
   if (!user) return { choices: [] };
 
   const query = typeof focused.value === "string" ? focused.value : "";
-  const matches = await listUserProjects(user.id, query || undefined);
-  return { choices: matches.map((p) => ({ name: p.name, value: p.id })) };
+
+  if (focused.name === "project") {
+    const matches = await listUserProjects(user.id, query || undefined);
+    return { choices: matches.map((p) => ({ name: p.name, value: p.id })) };
+  }
+
+  if (focused.name === "id" || focused.name === "work_item") {
+    const { args } = flattenOptions(interaction.data.options);
+    const projectInput = args.project ? String(args.project) : "";
+    if (!projectInput) return { choices: [{ name: "Pick a project first…", value: "" }] };
+    const project = await resolveUserProject(user.id, projectInput);
+    if (!project) return { choices: [] };
+    const items = await listProjectWorkItemChoices(project.id, query || undefined);
+    return { choices: items.map((i) => ({ name: i.label, value: i.id })) };
+  }
+
+  return { choices: [] };
 }
 
 async function routeCommand(interaction: {
@@ -180,10 +197,25 @@ async function routeCommand(interaction: {
         });
       }
       case "view":
-        return handleTaskView(project, { id: Number(args.id) });
+        return handleTaskView(project, { input: String(args.id ?? "") });
       default:
         return fail("Unknown /task subcommand.");
     }
+  }
+
+  if (commandName === "progress") {
+    const projectInput = args.project ? String(args.project) : "";
+    if (!projectInput) return fail("Pass a `project`.");
+    const project = await resolveUserProject(user.id, projectInput);
+    if (!project) return fail(`No project called "${projectInput}" that you belong to.`);
+
+    const workItemInput = args.work_item ? String(args.work_item) : "";
+    if (!workItemInput) return fail("Pass a `work_item`.");
+
+    const comment = args.comment ? String(args.comment).trim() : "";
+    if (!comment) return fail("Pass a `comment`.");
+
+    return handleProgress(user, project, { workItemInput, comment });
   }
 
   return fail("Unknown command.");
