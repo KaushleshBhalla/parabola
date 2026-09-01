@@ -234,7 +234,15 @@ export const projects = pgTable(
     inviteCode: text("invite_code").unique(),
     // Off (manual approval required) by default — see project_join_requests.
     autoApproveJoinRequests: boolean("auto_approve_join_requests").notNull().default(false),
+    // Set when a platform admin revokes Pro access (see app/admin/actions.ts)
+    // — fully locks the project until access is granted again. Deliberately
+    // separate from ownerArchivedAt below: a project owner archiving their
+    // own project must never trip this admin-only lock.
     archivedAt: timestamp("archived_at", { withTimezone: true }),
+    // Set by a project admin archiving their own project — just hides it
+    // from their dashboard's project list. Fully functional if visited
+    // directly, and can be unarchived anytime by that same admin.
+    ownerArchivedAt: timestamp("owner_archived_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

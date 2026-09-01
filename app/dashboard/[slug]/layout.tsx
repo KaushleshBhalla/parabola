@@ -47,6 +47,14 @@ export default async function ProjectLayout({
 
   return (
     <div className="flex h-full flex-col">
+      {project.ownerArchivedAt && (
+        <div className="flex items-center justify-between border-b bg-muted px-6 py-2 text-sm">
+          <span>This project is archived — hidden from your project list, but nothing else changed.</span>
+          <Link href={`/dashboard/${slug}`} className="font-medium text-primary hover:underline">
+            Unarchive
+          </Link>
+        </div>
+      )}
       {project.isDemo && canCreateOwn && <CreateProjectPrompt />}
       {project.isDemo && !canCreateOwn && (
         <div className="flex items-center justify-between border-b bg-primary/5 px-6 py-2 text-sm">

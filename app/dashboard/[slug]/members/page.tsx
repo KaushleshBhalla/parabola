@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import { users, projectMembers } from "@/lib/db/schema";
 import { requireUser } from "@/lib/auth/rbac";
-import { isProjectAdmin, getOrCreateProjectInviteCode, getPendingJoinRequests } from "@/lib/project-access";
+import { isProjectAdmin, getPendingJoinRequests } from "@/lib/project-access";
 import { getProjectBySlug } from "@/lib/projects";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -16,7 +16,6 @@ import {
 } from "@/components/ui/table";
 import { MemberToggle } from "./member-toggle";
 import { AddMemberByEmail } from "./add-member-by-email";
-import { ProjectSettings } from "./project-settings";
 import { PendingJoinRequests } from "./pending-join-requests";
 
 export default async function ProjectMembersPage({
@@ -31,7 +30,7 @@ export default async function ProjectMembersPage({
   const canManage = await isProjectAdmin(user.id, project.id);
   if (!canManage) redirect("/dashboard");
 
-  const [members, inviteCode, pendingRequests] = await Promise.all([
+  const [members, pendingRequests] = await Promise.all([
     db
       .select({
         id: users.id,
@@ -43,7 +42,6 @@ export default async function ProjectMembersPage({
       .innerJoin(users, eq(projectMembers.userId, users.id))
       .where(eq(projectMembers.projectId, project.id))
       .orderBy(users.name),
-    getOrCreateProjectInviteCode(project.id),
     getPendingJoinRequests(project.id),
   ]);
 
@@ -52,17 +50,10 @@ export default async function ProjectMembersPage({
       <div>
         <h1 className="font-heading text-xl font-semibold">Members</h1>
         <p className="text-sm text-muted-foreground">
-          Add anyone by email — they need an existing Parabola account.
+          Add anyone by email — they need an existing Parabola account. Project settings, the join
+          code, and auto-approve live on the project&apos;s Overview tab.
         </p>
       </div>
-
-      <ProjectSettings
-        projectId={project.id}
-        slug={slug}
-        name={project.name}
-        inviteCode={inviteCode}
-        autoApprove={project.autoApproveJoinRequests}
-      />
 
       <PendingJoinRequests projectId={project.id} slug={slug} requests={pendingRequests} />
 

@@ -12,7 +12,8 @@ export function ProjectNav({
   canManage: boolean;
 }) {
   const pathname = usePathname();
-  const tabs = [
+  const tabs: { label: string; href: string; exact?: boolean }[] = [
+    { label: "Overview", href: `/dashboard/${slug}`, exact: true },
     { label: "Work items", href: `/dashboard/${slug}/work-items` },
     { label: "Roadmap", href: `/dashboard/${slug}/roadmap` },
     { label: "Chat", href: `/dashboard/${slug}/chat` },
@@ -24,7 +25,7 @@ export function ProjectNav({
   return (
     <nav className="flex gap-1 border-b px-6">
       {tabs.map((tab) => {
-        const active = pathname.startsWith(tab.href);
+        const active = tab.exact ? pathname === tab.href : pathname.startsWith(tab.href);
         return (
           <Link
             key={tab.href}

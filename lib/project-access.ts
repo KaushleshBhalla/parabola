@@ -131,21 +131,30 @@ export async function createProjectForUser(
   return { project };
 }
 
-/** Project admins can rename their project — subject to the same global-uniqueness rule. */
-export async function renameProject(
+/** Project admins can edit their project's name/description — name subject to the global-uniqueness rule. */
+export async function updateProjectDetails(
   projectId: string,
   actorId: string,
-  newName: string
+  fields: { name?: string; description?: string | null }
 ): Promise<{ error: string } | undefined> {
   if (!(await isProjectAdmin(actorId, projectId))) return { error: "You can't manage that project." };
 
-  const trimmed = newName.trim();
-  if (!trimmed) return { error: "Project name is required." };
-  if (await isProjectNameTaken(trimmed, projectId)) {
-    return { error: `A project named "${trimmed}" already exists — pick a different name.` };
+  const update: { name?: string; description?: string | null; updatedAt: Date } = { updatedAt: new Date() };
+
+  if (fields.name !== undefined) {
+    const trimmed = fields.name.trim();
+    if (!trimmed) return { error: "Project name is required." };
+    if (await isProjectNameTaken(trimmed, projectId)) {
+      return { error: `A project named "${trimmed}" already exists — pick a different name.` };
+    }
+    update.name = trimmed;
   }
 
-  await db.update(projects).set({ name: trimmed, updatedAt: new Date() }).where(eq(projects.id, projectId));
+  if (fields.description !== undefined) {
+    update.description = fields.description?.trim() || null;
+  }
+
+  await db.update(projects).set(update).where(eq(projects.id, projectId));
 }
 
 export async function setProjectAutoApprove(
@@ -155,6 +164,23 @@ export async function setProjectAutoApprove(
 ): Promise<{ error: string } | undefined> {
   if (!(await isProjectAdmin(actorId, projectId))) return { error: "You can't manage that project." };
   await db.update(projects).set({ autoApproveJoinRequests: enabled }).where(eq(projects.id, projectId));
+}
+
+/**
+ * Self-service archive/unarchive — purely a "hide from my project list"
+ * toggle, distinct from the platform-admin Pro-revoke lock (archivedAt).
+ * An archived project is fully functional if visited directly.
+ */
+export async function setProjectOwnerArchived(
+  projectId: string,
+  actorId: string,
+  archived: boolean
+): Promise<{ error: string } | undefined> {
+  if (!(await isProjectAdmin(actorId, projectId))) return { error: "You can't manage that project." };
+  await db
+    .update(projects)
+    .set({ ownerArchivedAt: archived ? new Date() : null })
+    .where(eq(projects.id, projectId));
 }
 
 type JoinOutcome =
