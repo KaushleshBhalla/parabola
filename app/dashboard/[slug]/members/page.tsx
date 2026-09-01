@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import { users, projectMembers } from "@/lib/db/schema";
 import { requireUser } from "@/lib/auth/rbac";
-import { isProjectAdmin } from "@/lib/project-access";
+import { isProjectAdmin, getOrCreateProjectInviteCode, getPendingJoinRequests } from "@/lib/project-access";
 import { getProjectBySlug } from "@/lib/projects";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -16,6 +16,8 @@ import {
 } from "@/components/ui/table";
 import { MemberToggle } from "./member-toggle";
 import { AddMemberByEmail } from "./add-member-by-email";
+import { ProjectSettings } from "./project-settings";
+import { PendingJoinRequests } from "./pending-join-requests";
 
 export default async function ProjectMembersPage({
   params,
@@ -29,17 +31,21 @@ export default async function ProjectMembersPage({
   const canManage = await isProjectAdmin(user.id, project.id);
   if (!canManage) redirect("/dashboard");
 
-  const members = await db
-    .select({
-      id: users.id,
-      name: users.name,
-      role: users.role,
-      isAdmin: projectMembers.isAdmin,
-    })
-    .from(projectMembers)
-    .innerJoin(users, eq(projectMembers.userId, users.id))
-    .where(eq(projectMembers.projectId, project.id))
-    .orderBy(users.name);
+  const [members, inviteCode, pendingRequests] = await Promise.all([
+    db
+      .select({
+        id: users.id,
+        name: users.name,
+        role: users.role,
+        isAdmin: projectMembers.isAdmin,
+      })
+      .from(projectMembers)
+      .innerJoin(users, eq(projectMembers.userId, users.id))
+      .where(eq(projectMembers.projectId, project.id))
+      .orderBy(users.name),
+    getOrCreateProjectInviteCode(project.id),
+    getPendingJoinRequests(project.id),
+  ]);
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-6 py-8">
@@ -49,6 +55,16 @@ export default async function ProjectMembersPage({
           Add anyone by email — they need an existing Parabola account.
         </p>
       </div>
+
+      <ProjectSettings
+        projectId={project.id}
+        slug={slug}
+        name={project.name}
+        inviteCode={inviteCode}
+        autoApprove={project.autoApproveJoinRequests}
+      />
+
+      <PendingJoinRequests projectId={project.id} slug={slug} requests={pendingRequests} />
 
       <AddMemberByEmail projectId={project.id} slug={slug} />
 

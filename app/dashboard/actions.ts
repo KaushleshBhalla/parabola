@@ -1,20 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { eq } from "drizzle-orm";
-import { db } from "@/lib/db/client";
-import { projects, projectCounters, projectMembers } from "@/lib/db/schema";
 import { requireUser } from "@/lib/auth/rbac";
-import { hasRealProject, canCreateOwnProject } from "@/lib/project-access";
+import { hasRealProject, canCreateOwnProject, createProjectForUser } from "@/lib/project-access";
 import { logActivity } from "@/lib/activity";
-
-function slugify(name: string) {
-  return name
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|-$)/g, "");
-}
 
 export async function createProject(
   formData: FormData
@@ -28,31 +17,9 @@ export async function createProject(
     return { error: "Request project access before creating a project." };
   }
 
-  const baseSlug = slugify(name) || "project";
-  let slug = baseSlug;
-  let suffix = 1;
-  while (true) {
-    const [existing] = await db
-      .select({ id: projects.id })
-      .from(projects)
-      .where(eq(projects.slug, slug))
-      .limit(1);
-    if (!existing) break;
-    slug = `${baseSlug}-${++suffix}`;
-  }
-
-  const [project] = await db
-    .insert(projects)
-    .values({
-      name,
-      slug,
-      description: description || null,
-      createdBy: user.id,
-    })
-    .returning();
-
-  await db.insert(projectCounters).values({ projectId: project.id });
-  await db.insert(projectMembers).values({ projectId: project.id, userId: user.id, isAdmin: true });
+  const result = await createProjectForUser(user.id, name, description || null);
+  if ("error" in result) return result;
+  const { project } = result;
 
   await logActivity({
     actorId: user.id,
@@ -60,8 +27,8 @@ export async function createProject(
     action: "project.created",
     entityType: "project",
     entityId: project.id,
-    after: { name, slug },
-    searchText: `Created project "${name}"`,
+    after: { name: project.name, slug: project.slug },
+    searchText: `Created project "${project.name}"`,
   });
 
   revalidatePath("/dashboard");

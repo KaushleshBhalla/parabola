@@ -15,7 +15,10 @@ export async function createOwnProject(
   const trimmed = name.trim();
   if (!trimmed) return { error: "Project name is required." };
 
-  const project = await createProjectForUser(user.id, trimmed);
+  const result = await createProjectForUser(user.id, trimmed);
+  if ("error" in result) return result;
+  const { project } = result;
+
   await logActivity({
     actorId: user.id,
     projectId: project.id,

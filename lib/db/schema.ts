@@ -214,30 +214,42 @@ export const memberRoles = pgTable(
 
 // ============ PROJECTS ============
 
-export const projects = pgTable("projects", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  name: text("name").notNull(),
-  slug: text("slug").notNull().unique(),
-  description: text("description"),
-  color: text("color"),
-  // Deprecated — organizations are no longer the tenant boundary; projects
-  // are independent. Left in place (unused) rather than dropped.
-  organizationId: uuid("organization_id").references(() => organizations.id, {
-    onDelete: "cascade",
-  }),
-  createdBy: uuid("created_by").references(() => users.id),
-  isDemo: boolean("is_demo").notNull().default(false),
-  demoCreationsUsed: integer("demo_creations_used").notNull().default(0),
-  discordGuildId: text("discord_guild_id").unique(),
-  inviteCode: text("invite_code").unique(),
-  archivedAt: timestamp("archived_at", { withTimezone: true }),
-  createdAt: timestamp("created_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-});
+export const projects = pgTable(
+  "projects",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: text("name").notNull(),
+    slug: text("slug").notNull().unique(),
+    description: text("description"),
+    color: text("color"),
+    // Deprecated — organizations are no longer the tenant boundary; projects
+    // are independent. Left in place (unused) rather than dropped.
+    organizationId: uuid("organization_id").references(() => organizations.id, {
+      onDelete: "cascade",
+    }),
+    createdBy: uuid("created_by").references(() => users.id),
+    isDemo: boolean("is_demo").notNull().default(false),
+    demoCreationsUsed: integer("demo_creations_used").notNull().default(0),
+    discordGuildId: text("discord_guild_id").unique(),
+    inviteCode: text("invite_code").unique(),
+    // Off (manual approval required) by default — see project_join_requests.
+    autoApproveJoinRequests: boolean("auto_approve_join_requests").notNull().default(false),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    // Demo projects are all named the same ("Parabola Demo") by design, so
+    // uniqueness only applies to real, ownable projects.
+    uniqueIndex("projects_name_unique_real_idx")
+      .on(table.name)
+      .where(sql`not ${table.isDemo}`),
+  ]
+);
 
 export const projectCounters = pgTable("project_counters", {
   projectId: uuid("project_id")
@@ -245,6 +257,39 @@ export const projectCounters = pgTable("project_counters", {
     .references(() => projects.id, { onDelete: "cascade" }),
   nextNumber: integer("next_number").notNull().default(1),
 });
+
+export const projectJoinRequestStatusEnum = pgEnum("project_join_request_status", [
+  "pending",
+  "approved",
+  "declined",
+]);
+
+// A user typing a project's join code — pending by default, auto-approved
+// immediately (see lib/project-access.ts) when the project has that setting on.
+export const projectJoinRequests = pgTable(
+  "project_join_requests",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    status: projectJoinRequestStatusEnum("status").notNull().default("pending"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    resolvedBy: uuid("resolved_by").references(() => users.id),
+  },
+  (table) => [
+    index("project_join_requests_project_status_idx").on(table.projectId, table.status),
+    // One pending request per person per project — resubmitting just no-ops
+    // instead of piling up duplicate rows.
+    uniqueIndex("project_join_requests_pending_unique_idx")
+      .on(table.projectId, table.userId)
+      .where(sql`${table.status} = 'pending'`),
+  ]
+);
 
 // ============ LABELS ============
 

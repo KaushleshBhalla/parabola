@@ -10,6 +10,7 @@ import {
   ScrollText,
   LayoutDashboard,
   Crown,
+  KeyRound,
 } from "lucide-react";
 import { SignOutButton } from "@clerk/nextjs";
 import { requireUser, hasRole } from "@/lib/auth/rbac";
@@ -93,6 +94,13 @@ export default async function DashboardLayout({
           >
             <ListChecks className="size-4" />
             Team tasks
+          </Link>
+          <Link
+            href="/dashboard/join"
+            className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 hover:bg-muted"
+          >
+            <KeyRound className="size-4" />
+            Join project
           </Link>
           {canManageTeam && (
             <Link

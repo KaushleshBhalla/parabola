@@ -298,7 +298,7 @@ const html = `<!doctype html>
 
       <div class="cmd-card" id="invite-members">
         <div class="cmd-head"><span class="cmd-syntax">Add members</span></div>
-        <p class="cmd-desc">From a project's Members page, any admin on that project can add someone by typing their email — no invite link, no waiting. They need to already have a Parabola account (ask them to sign up first if they don't); once added, they're a full member of that project, mentionable in <code>/assign</code> and everywhere else in Discord.</p>
+        <p class="cmd-desc">Two ways in: from a project's Members page, any admin can add someone directly by typing their email — no code, no waiting, they need an existing Parabola account. Or share the project's join code from that same page — anyone can enter it from their own sidebar's <strong>Join project</strong> link, which either adds them instantly or files a request for an admin to approve, depending on that project's auto-approve setting (off, i.e. manual approval, by default). Either way, once they're in, they're a full member — mentionable in <code>/assign</code> and everywhere else in Discord.</p>
       </div>
     </section>
 

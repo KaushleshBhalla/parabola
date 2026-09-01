@@ -1,8 +1,15 @@
 import "server-only";
 import { randomBytes } from "node:crypto";
-import { eq, and, isNull } from "drizzle-orm";
+import { eq, and, isNull, ne } from "drizzle-orm";
 import { db } from "@/lib/db/client";
-import { projects, projectMembers, projectCounters, users, accessRequests } from "@/lib/db/schema";
+import {
+  projects,
+  projectMembers,
+  projectCounters,
+  projectJoinRequests,
+  users,
+  accessRequests,
+} from "@/lib/db/schema";
 import { seedDemoProject } from "@/lib/demo/seed";
 
 /**
@@ -27,18 +34,13 @@ export async function isProjectAdmin(userId: string, projectId: string): Promise
 }
 
 /**
- * Adds a user to a project if they aren't already a member. Shared by the
- * shareable invite-link flow (app/join/[code]/page.tsx).
+ * Adds a user to a project if they aren't already a member. Internal-only
+ * now — the actual join surfaces (join code entry, /join/[code] link) go
+ * through requestToJoinProject below, which respects each project's
+ * auto-approve setting instead of always joining instantly.
  */
-export async function joinProjectById(userId: string, projectId: string) {
-  const [existing] = await db
-    .select({ userId: projectMembers.userId })
-    .from(projectMembers)
-    .where(and(eq(projectMembers.projectId, projectId), eq(projectMembers.userId, userId)))
-    .limit(1);
-  if (existing) return;
-
-  await db.insert(projectMembers).values({ projectId, userId });
+async function addProjectMember(userId: string, projectId: string) {
+  await db.insert(projectMembers).values({ projectId, userId }).onConflictDoNothing();
 }
 
 export async function getOrCreateProjectInviteCode(projectId: string) {
@@ -84,19 +86,161 @@ async function uniqueSlug(base: string) {
   }
 }
 
+/**
+ * Real-project names are globally unique (demo projects are exempt — they're
+ * all named "Parabola Demo" by design). `excludeProjectId` lets a rename
+ * check ignore the project's own current name.
+ */
+export async function isProjectNameTaken(name: string, excludeProjectId?: string): Promise<boolean> {
+  const [existing] = await db
+    .select({ id: projects.id })
+    .from(projects)
+    .where(
+      and(
+        eq(projects.name, name),
+        eq(projects.isDemo, false),
+        excludeProjectId ? ne(projects.id, excludeProjectId) : undefined
+      )
+    )
+    .limit(1);
+  return !!existing;
+}
+
 /** A real (non-demo) project, fully independent — the creator is its admin. */
-export async function createProjectForUser(userId: string, name: string) {
-  const slug = await uniqueSlug(slugify(name) || "project");
-  return db.transaction(async (tx) => {
-    const [project] = await tx
+export async function createProjectForUser(
+  userId: string,
+  name: string,
+  description?: string | null
+): Promise<{ project: typeof projects.$inferSelect } | { error: string }> {
+  const trimmed = name.trim();
+  if (!trimmed) return { error: "Project name is required." };
+  if (await isProjectNameTaken(trimmed)) {
+    return { error: `A project named "${trimmed}" already exists — pick a different name.` };
+  }
+
+  const slug = await uniqueSlug(slugify(trimmed) || "project");
+  const project = await db.transaction(async (tx) => {
+    const [p] = await tx
       .insert(projects)
-      .values({ name, slug, createdBy: userId })
+      .values({ name: trimmed, slug, description: description || null, createdBy: userId })
       .returning();
-    await tx.insert(projectCounters).values({ projectId: project.id });
-    await tx.insert(projectMembers).values({ projectId: project.id, userId, isAdmin: true });
-    return project;
+    await tx.insert(projectCounters).values({ projectId: p.id });
+    await tx.insert(projectMembers).values({ projectId: p.id, userId, isAdmin: true });
+    return p;
+  });
+  return { project };
+}
+
+/** Project admins can rename their project — subject to the same global-uniqueness rule. */
+export async function renameProject(
+  projectId: string,
+  actorId: string,
+  newName: string
+): Promise<{ error: string } | undefined> {
+  if (!(await isProjectAdmin(actorId, projectId))) return { error: "You can't manage that project." };
+
+  const trimmed = newName.trim();
+  if (!trimmed) return { error: "Project name is required." };
+  if (await isProjectNameTaken(trimmed, projectId)) {
+    return { error: `A project named "${trimmed}" already exists — pick a different name.` };
+  }
+
+  await db.update(projects).set({ name: trimmed, updatedAt: new Date() }).where(eq(projects.id, projectId));
+}
+
+export async function setProjectAutoApprove(
+  projectId: string,
+  actorId: string,
+  enabled: boolean
+): Promise<{ error: string } | undefined> {
+  if (!(await isProjectAdmin(actorId, projectId))) return { error: "You can't manage that project." };
+  await db.update(projects).set({ autoApproveJoinRequests: enabled }).where(eq(projects.id, projectId));
+}
+
+type JoinOutcome =
+  | { status: "already_member"; project: { id: string; name: string; slug: string } }
+  | { status: "approved"; project: { id: string; name: string; slug: string } }
+  | { status: "pending"; project: { id: string; name: string } }
+  | { error: string };
+
+/**
+ * The one entry point for both join surfaces (the sidebar's code-entry form
+ * and the /join/[code] link): resolves a project's invite code, then either
+ * joins instantly (auto-approve on) or files a pending request an admin has
+ * to act on (manual, the default) — never joins outright otherwise.
+ */
+export async function requestToJoinProject(userId: string, code: string): Promise<JoinOutcome> {
+  const trimmed = code.trim();
+  if (!trimmed) return { error: "Enter a join code." };
+
+  const [project] = await db.select().from(projects).where(eq(projects.inviteCode, trimmed)).limit(1);
+  if (!project) return { error: "That code doesn't match any project." };
+
+  const [existingMember] = await db
+    .select({ userId: projectMembers.userId })
+    .from(projectMembers)
+    .where(and(eq(projectMembers.projectId, project.id), eq(projectMembers.userId, userId)))
+    .limit(1);
+  if (existingMember) {
+    return { status: "already_member", project: { id: project.id, name: project.name, slug: project.slug } };
+  }
+
+  if (project.autoApproveJoinRequests) {
+    await addProjectMember(userId, project.id);
+    return { status: "approved", project: { id: project.id, name: project.name, slug: project.slug } };
+  }
+
+  await db
+    .insert(projectJoinRequests)
+    .values({ projectId: project.id, userId })
+    .onConflictDoNothing();
+  return { status: "pending", project: { id: project.id, name: project.name } };
+}
+
+export async function getPendingJoinRequests(projectId: string) {
+  return db
+    .select({
+      id: projectJoinRequests.id,
+      userId: users.id,
+      name: users.name,
+      email: users.email,
+      createdAt: projectJoinRequests.createdAt,
+    })
+    .from(projectJoinRequests)
+    .innerJoin(users, eq(projectJoinRequests.userId, users.id))
+    .where(and(eq(projectJoinRequests.projectId, projectId), eq(projectJoinRequests.status, "pending")))
+    .orderBy(projectJoinRequests.createdAt);
+}
+
+async function resolveJoinRequest(
+  requestId: string,
+  actorId: string,
+  outcome: "approved" | "declined"
+): Promise<{ error: string } | undefined> {
+  const [request] = await db
+    .select()
+    .from(projectJoinRequests)
+    .where(eq(projectJoinRequests.id, requestId))
+    .limit(1);
+  if (!request || request.status !== "pending") return { error: "That request is no longer pending." };
+  if (!(await isProjectAdmin(actorId, request.projectId))) return { error: "You can't manage that project." };
+
+  await db.transaction(async (tx) => {
+    if (outcome === "approved") {
+      await tx.insert(projectMembers).values({ projectId: request.projectId, userId: request.userId }).onConflictDoNothing();
+    }
+    await tx
+      .update(projectJoinRequests)
+      .set({ status: outcome, resolvedAt: new Date(), resolvedBy: actorId })
+      .where(eq(projectJoinRequests.id, requestId));
   });
 }
+
+export const approveJoinRequest = (requestId: string, actorId: string) =>
+  resolveJoinRequest(requestId, actorId, "approved");
+
+export const declineJoinRequest = (requestId: string, actorId: string) =>
+  resolveJoinRequest(requestId, actorId, "declined");
 
 export async function createDemoProjectForUser(userId: string) {
   return seedDemoProject(userId);
