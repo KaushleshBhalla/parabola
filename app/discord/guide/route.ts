@@ -130,6 +130,8 @@ const html = `<!doctype html>
       <a class="nav-link" href="#progress"><span class="hash">/</span>progress</a>
       <a class="nav-link" href="#setmeet"><span class="hash">/</span>setmeet</a>
       <a class="nav-link" href="#mytasks"><span class="hash">/</span>mytasks</a>
+      <a class="nav-link" href="#teammates"><span class="hash">/</span>teammates</a>
+      <a class="nav-link" href="#test"><span class="hash">/</span>test</a>
     </div>
     <div class="nav-group">
       <span class="nav-label">In Discord</span>
@@ -149,7 +151,7 @@ const html = `<!doctype html>
       <h1 class="title">Parabola for Discord</h1>
       <p class="lede">Parabola, wherever your team already is. It keeps things deliberately minimal — check tasks, create and assign new ones, from Discord, across every project you're in. Creating projects and adding members lives on the website.</p>
       <div class="stat-row">
-        <div class="stat"><b>8</b><span>Slash commands</span></div>
+        <div class="stat"><b>10</b><span>Slash commands</span></div>
         <div class="stat"><b>All</b><span>Your projects, one bot</span></div>
       </div>
     </div>
@@ -288,6 +290,25 @@ const html = `<!doctype html>
           <span class="badge everyone">Everyone</span>
         </div>
         <p class="cmd-desc">Your own queue across every project you're in, sorted the same way the My Tasks page sorts it — overdue first, then due soon, then everything else.</p>
+      </div>
+
+      <div class="cmd-card" id="teammates">
+        <div class="cmd-head">
+          <span class="cmd-syntax">/teammates <span class="opt">[project]</span></span>
+          <span class="badge everyone">Everyone</span>
+        </div>
+        <p class="cmd-desc">Looks at everyone else in this Discord server, and shows only the ones who share at least one project with you — plus what they're currently working on in it. Never shows people or projects you don't already have access to.</p>
+        <div class="params">
+          <span class="p-name">project</span><span class="p-desc">Limit the overlap check to one of your projects (autocomplete) instead of all of them.</span>
+        </div>
+      </div>
+
+      <div class="cmd-card" id="test">
+        <div class="cmd-head">
+          <span class="cmd-syntax">/test</span>
+          <span class="badge everyone">Everyone</span>
+        </div>
+        <p class="cmd-desc">A quick health check — confirms the database is reachable, that your account is actually linked, and lists the projects Parabola sees you as a member of. Useful as a first step whenever something seems off.</p>
       </div>
 
       <div class="cmd-card" id="guide-cmd">

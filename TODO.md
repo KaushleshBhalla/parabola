@@ -25,6 +25,15 @@ Check items off as they're done; add new ones as they come up.
       failing signature verification right now. Worth confirming whether
       it's even configured on Clerk's side (an endpoint has to be added in
       the Clerk dashboard for this to matter at all).
+- [ ] **Enable "Server Members Intent" for the bot** — required for
+      `/teammates` to work at all. Confirmed live: the guild-members API
+      call currently returns `403 Missing Access`, and the app's `flags`
+      don't have this intent bit set — this is a Developer Portal-only
+      toggle, not something settable via the API. Go to
+      [discord.com/developers/applications](https://discord.com/developers/applications)
+      → Parabola → Bot → scroll to **Privileged Gateway Intents** → turn on
+      **Server Members Intent** → Save Changes. No code change needed once
+      it's on.
 
 ## Known limitations (not bugs — just what the current plan allows)
 

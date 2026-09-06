@@ -149,4 +149,21 @@ export const discordCommands = [
     ],
   },
   { name: "mytasks", description: "Your assigned tasks across every project, most urgent first." },
+  {
+    name: "test",
+    description: "Check that Parabola's database and your account link are working.",
+  },
+  {
+    name: "teammates",
+    description: "Server members who share a project with you, and what they're working on.",
+    options: [
+      {
+        name: "project",
+        description: "Limit to one shared project instead of all of them",
+        type: 3,
+        required: false,
+        autocomplete: true,
+      },
+    ],
+  },
 ];

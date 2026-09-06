@@ -19,6 +19,8 @@ import {
   handleProgress,
   handleSetMeet,
   handleMyTasks,
+  handleTest,
+  handleTeammates,
 } from "@/lib/discord/handlers";
 
 // This route's DB round trips all go to Supabase in ap-northeast-1 (Tokyo)
@@ -82,6 +84,8 @@ function guideEmbed() {
       "**/setmeet time:<e.g. 10pm today> timezone:<e.g. Indian> [project] [title]** — schedule a meeting; I'll ping every project member, right here, 5 minutes before. Project admins only.",
       "`project` is optional everywhere else above (autocomplete over every project you're in) — it defaults to your only project if you're just in one, otherwise you'll be asked to pick.",
       "**/mytasks** — your assigned tasks across every project you're in.",
+      "**/test** — checks Parabola's database and your account link are working.",
+      "**/teammates [project]** — server members who share a project with you, and their pending tasks in it.",
       "",
       `[Full guide with screenshots](${APP_URL}/discord/guide)`,
     ].join("\n"),
@@ -119,6 +123,7 @@ async function routeAutocomplete(interaction: {
 }
 
 async function routeCommand(interaction: {
+  guild_id?: string;
   channel_id?: string;
   member?: { user?: { id: string; username: string; global_name?: string | null } };
   user?: { id: string; username: string; global_name?: string | null };
@@ -161,6 +166,15 @@ async function routeCommand(interaction: {
 
   if (commandName === "mytasks") {
     return handleMyTasks(user);
+  }
+
+  if (commandName === "test") {
+    return handleTest(user);
+  }
+
+  if (commandName === "teammates") {
+    if (!interaction.guild_id) return fail("This command only works inside a server.");
+    return handleTeammates(user, interaction.guild_id, args.project ? String(args.project) : undefined);
   }
 
   if (commandName === "board") {

@@ -25,6 +25,31 @@ export async function sendChannelMessage(
   }
 }
 
+/**
+ * Every member of a Discord server, paginated (Discord caps a single page
+ * at 1000). Requires the bot to have the "Server Members Intent" privileged
+ * intent enabled in the Developer Portal (Bot -> Privileged Gateway
+ * Intents) — without it Discord returns only partial/empty results even
+ * though the request itself succeeds.
+ */
+export async function listGuildMembers(guildId: string): Promise<{ user: { id: string; username: string; bot?: boolean } }[]> {
+  const members: { user: { id: string; username: string; bot?: boolean } }[] = [];
+  let after = "0";
+  while (true) {
+    const res = await fetch(`${DISCORD_API}/guilds/${guildId}/members?limit=1000&after=${after}`, {
+      headers: botHeaders(),
+    });
+    if (!res.ok) {
+      throw new Error(`Discord listGuildMembers failed: ${res.status} ${await res.text()}`);
+    }
+    const page: { user: { id: string; username: string; bot?: boolean } }[] = await res.json();
+    members.push(...page);
+    if (page.length < 1000) break;
+    after = page[page.length - 1].user.id;
+  }
+  return members;
+}
+
 export async function sendDirectMessage(
   discordUserId: string,
   body: { content?: string; embeds?: unknown[] }

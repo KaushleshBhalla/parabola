@@ -1,5 +1,5 @@
 import "server-only";
-import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, notInArray, sql } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import {
   users,
@@ -20,6 +20,7 @@ import { formatStatusLabel } from "@/lib/work-items";
 import { resolveProjectWorkItem } from "./resolve";
 import { parseDeadlineInput } from "./deadline-parse";
 import { parseMeetingTime } from "./meeting-time";
+import { listGuildMembers } from "./api";
 import { buildEmbed, DANGER_COLOR, SUCCESS_COLOR } from "./embeds";
 
 export type CommandReply = { content?: string; embeds?: unknown[]; ephemeral?: boolean };
@@ -493,5 +494,162 @@ export async function handleMyTasks(user: DiscordUser): Promise<CommandReply> {
       }),
     ],
     ephemeral: true,
+  };
+}
+
+// ============ /test ============
+
+export async function handleTest(user: DiscordUser): Promise<CommandReply> {
+  const checks: { label: string; ok: boolean; detail: string }[] = [];
+
+  const dbStart = Date.now();
+  try {
+    await db.select({ id: projects.id }).from(projects).limit(1);
+    checks.push({ label: "Database", ok: true, detail: `reachable (${Date.now() - dbStart}ms)` });
+  } catch {
+    checks.push({ label: "Database", ok: false, detail: "unreachable — this is a real outage, not a you problem" });
+  }
+
+  checks.push({ label: "Discord account link", ok: true, detail: `linked as ${user.name}` });
+
+  const myProjects = await db
+    .select({ name: projects.name })
+    .from(projectMembers)
+    .innerJoin(projects, eq(projectMembers.projectId, projects.id))
+    .where(eq(projectMembers.userId, user.id));
+  checks.push({
+    label: "Your projects",
+    ok: myProjects.length > 0,
+    detail: myProjects.length > 0 ? myProjects.map((p) => p.name).join(", ") : "none yet — ask a project admin to add you",
+  });
+
+  const allOk = checks.every((c) => c.ok);
+  return {
+    embeds: [
+      buildEmbed({
+        title: allOk ? "Everything's working" : "Something needs attention",
+        description: checks.map((c) => `${c.ok ? "✅" : "❌"} **${c.label}** — ${c.detail}`).join("\n"),
+        color: allOk ? SUCCESS_COLOR : DANGER_COLOR,
+      }),
+    ],
+    ephemeral: true,
+  };
+}
+
+// ============ /teammates ============
+
+export async function handleTeammates(
+  user: DiscordUser,
+  guildId: string,
+  projectFilter?: string
+): Promise<CommandReply> {
+  const myMemberships = await db
+    .select({ projectId: projectMembers.projectId, projectName: projects.name })
+    .from(projectMembers)
+    .innerJoin(projects, eq(projectMembers.projectId, projects.id))
+    .where(eq(projectMembers.userId, user.id));
+  if (myMemberships.length === 0) return fail("You're not in any projects yet.");
+
+  let relevantProjectIds = myMemberships.map((m) => m.projectId);
+  if (projectFilter) {
+    const match = myMemberships.find(
+      (m) => m.projectId === projectFilter || m.projectName.toLowerCase() === projectFilter.toLowerCase()
+    );
+    if (!match) return fail(`No project called "${projectFilter}" that you belong to.`);
+    relevantProjectIds = [match.projectId];
+  }
+
+  let guildMembers;
+  try {
+    guildMembers = await listGuildMembers(guildId);
+  } catch {
+    return fail(
+      'Couldn\'t read this server\'s member list — Parabola\'s bot may need "Server Members Intent" enabled in its Discord settings.'
+    );
+  }
+
+  const guildDiscordIds = guildMembers.filter((m) => !m.user.bot).map((m) => m.user.id);
+  if (guildDiscordIds.length === 0) return fail("Couldn't find any members in this server.");
+
+  const linkedUsers = await db.select().from(users).where(inArray(users.discordUserId, guildDiscordIds));
+  const others = linkedUsers.filter((u) => u.id !== user.id);
+  if (others.length === 0) return fail("No one else in this server has linked their Parabola account with `/link` yet.");
+
+  const otherIds = others.map((o) => o.id);
+  const theirMemberships = await db
+    .select({ userId: projectMembers.userId, projectId: projectMembers.projectId, projectName: projects.name })
+    .from(projectMembers)
+    .innerJoin(projects, eq(projectMembers.projectId, projects.id))
+    .where(and(inArray(projectMembers.userId, otherIds), inArray(projectMembers.projectId, relevantProjectIds)));
+
+  const sharedByUser = new Map<string, { projectIds: string[]; projectNames: string[] }>();
+  for (const m of theirMemberships) {
+    const entry = sharedByUser.get(m.userId) ?? { projectIds: [], projectNames: [] };
+    entry.projectIds.push(m.projectId);
+    entry.projectNames.push(m.projectName);
+    sharedByUser.set(m.userId, entry);
+  }
+
+  if (sharedByUser.size === 0) {
+    return {
+      embeds: [
+        buildEmbed({
+          title: "No teammates here yet",
+          description: "No one else in this server shares a project with you.",
+        }),
+      ],
+    };
+  }
+
+  const allSharedProjectIds = [...new Set([...sharedByUser.values()].flatMap((v) => v.projectIds))];
+  const pendingRows = await db
+    .select({
+      userId: workItemAssignees.userId,
+      number: workItems.number,
+      title: workItems.title,
+      status: workItems.status,
+    })
+    .from(workItemAssignees)
+    .innerJoin(workItems, eq(workItemAssignees.workItemId, workItems.id))
+    .where(
+      and(
+        inArray(workItemAssignees.userId, [...sharedByUser.keys()]),
+        inArray(workItems.projectId, allSharedProjectIds),
+        notInArray(workItems.status, ["done", "cancelled"])
+      )
+    );
+
+  const pendingByUser = new Map<string, { number: number; title: string; status: string }[]>();
+  for (const r of pendingRows) {
+    const list = pendingByUser.get(r.userId) ?? [];
+    list.push({ number: r.number, title: r.title, status: r.status });
+    pendingByUser.set(r.userId, list);
+  }
+
+  const SHOWN_PENDING = 5;
+  const fields = others
+    .filter((o) => sharedByUser.has(o.id))
+    .map((o) => {
+      const shared = sharedByUser.get(o.id)!;
+      const pending = pendingByUser.get(o.id) ?? [];
+      const shown = pending.slice(0, SHOWN_PENDING);
+      const rest = pending.length - shown.length;
+      const value = [
+        `Shared: ${[...new Set(shared.projectNames)].join(", ")}`,
+        pending.length === 0
+          ? "No pending tasks."
+          : shown.map((p) => `#${p.number} ${p.title} — ${formatStatusLabel(p.status)}`).join("\n") +
+            (rest > 0 ? `\n_+${rest} more_` : ""),
+      ].join("\n");
+      return { name: o.name, value: value.slice(0, 1024), inline: false };
+    });
+
+  return {
+    embeds: [
+      buildEmbed({
+        title: `Teammates here (${fields.length})`,
+        fields: fields.slice(0, 25),
+      }),
+    ],
   };
 }
