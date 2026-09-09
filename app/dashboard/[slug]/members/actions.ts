@@ -6,7 +6,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import { projectMembers, users } from "@/lib/db/schema";
 import { requireUser } from "@/lib/auth/rbac";
-import { isProjectAdmin, approveJoinRequest, declineJoinRequest } from "@/lib/project-access";
+import { isProjectAdmin, approveJoinRequest, declineJoinRequest, setMemberRole } from "@/lib/project-access";
 import { logActivity } from "@/lib/activity";
 
 async function requireProjectManager(projectId: string) {
@@ -19,13 +19,26 @@ export async function respondToJoinRequest(
   requestId: string,
   projectId: string,
   slug: string,
-  approve: boolean
+  approve: boolean,
+  isAdmin = false
 ): Promise<{ error: string } | undefined> {
   const actor = await requireProjectManager(projectId);
   const result = approve
-    ? await approveJoinRequest(requestId, actor.id)
+    ? await approveJoinRequest(requestId, actor.id, isAdmin)
     : await declineJoinRequest(requestId, actor.id);
   if (result?.error) return result;
+
+  if (approve) {
+    await logActivity({
+      actorId: actor.id,
+      projectId,
+      action: "project_join_request.approved",
+      entityType: "project_join_request",
+      entityId: requestId,
+      after: { isAdmin },
+      searchText: `Approved a join request as ${isAdmin ? "Admin" : "Member"}`,
+    });
+  }
 
   revalidatePath(`/dashboard/${slug}/members`);
 }
@@ -33,7 +46,8 @@ export async function respondToJoinRequest(
 export async function addProjectMemberByEmail(
   projectId: string,
   email: string,
-  slug: string
+  slug: string,
+  isAdmin = false
 ): Promise<{ error: string } | undefined> {
   const actor = await requireProjectManager(projectId);
   const normalized = email.trim().toLowerCase();
@@ -48,7 +62,7 @@ export async function addProjectMemberByEmail(
     return { error: "No account found for that email — ask them to sign up first, then try again." };
   }
 
-  await db.insert(projectMembers).values({ projectId, userId: target.id }).onConflictDoNothing();
+  await db.insert(projectMembers).values({ projectId, userId: target.id, isAdmin }).onConflictDoNothing();
 
   await logActivity({
     actorId: actor.id,
@@ -56,7 +70,31 @@ export async function addProjectMemberByEmail(
     action: "project_member.added",
     entityType: "project_member",
     entityId: target.id,
-    searchText: `Added ${target.name} (${normalized}) to the project by email`,
+    searchText: `Added ${target.name} (${normalized}) to the project by email as ${isAdmin ? "Admin" : "Member"}`,
+  });
+
+  revalidatePath(`/dashboard/${slug}/members`);
+}
+
+export async function changeMemberRole(
+  projectId: string,
+  userId: string,
+  slug: string,
+  isAdmin: boolean
+): Promise<{ error: string } | undefined> {
+  const actor = await requireProjectManager(projectId);
+  const result = await setMemberRole(projectId, actor.id, userId, isAdmin);
+  if (result?.error) return result;
+
+  const [target] = await db.select({ name: users.name }).from(users).where(eq(users.id, userId)).limit(1);
+  await logActivity({
+    actorId: actor.id,
+    projectId,
+    action: "project_member.role_changed",
+    entityType: "project_member",
+    entityId: userId,
+    after: { isAdmin },
+    searchText: `Changed ${target?.name ?? userId}'s role to ${isAdmin ? "Admin" : "Member"}`,
   });
 
   revalidatePath(`/dashboard/${slug}/members`);

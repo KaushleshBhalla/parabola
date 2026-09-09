@@ -80,7 +80,7 @@ export default async function ProjectMembersPage({
                 {m.id === project.createdBy ? (
                   <span className="text-sm text-muted-foreground">Owner</span>
                 ) : (
-                  <MemberToggle projectId={project.id} userId={m.id} slug={slug} />
+                  <MemberToggle projectId={project.id} userId={m.id} slug={slug} isAdmin={m.isAdmin} />
                 )}
               </TableCell>
             </TableRow>

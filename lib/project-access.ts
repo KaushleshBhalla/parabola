@@ -274,7 +274,8 @@ export async function getPendingJoinRequests(projectId: string) {
 async function resolveJoinRequest(
   requestId: string,
   actorId: string,
-  outcome: "approved" | "declined"
+  outcome: "approved" | "declined",
+  isAdmin = false
 ): Promise<{ error: string } | undefined> {
   const [request] = await db
     .select()
@@ -286,7 +287,7 @@ async function resolveJoinRequest(
 
   await db.transaction(async (tx) => {
     if (outcome === "approved") {
-      await tx.insert(projectMembers).values({ projectId: request.projectId, userId: request.userId }).onConflictDoNothing();
+      await tx.insert(projectMembers).values({ projectId: request.projectId, userId: request.userId, isAdmin }).onConflictDoNothing();
     }
     await tx
       .update(projectJoinRequests)
@@ -295,11 +296,25 @@ async function resolveJoinRequest(
   });
 }
 
-export const approveJoinRequest = (requestId: string, actorId: string) =>
-  resolveJoinRequest(requestId, actorId, "approved");
+export const approveJoinRequest = (requestId: string, actorId: string, isAdmin = false) =>
+  resolveJoinRequest(requestId, actorId, "approved", isAdmin);
 
 export const declineJoinRequest = (requestId: string, actorId: string) =>
   resolveJoinRequest(requestId, actorId, "declined");
+
+/** Promote/demote an existing member. Anyone who can manage the project can manage any other member's role. */
+export async function setMemberRole(
+  projectId: string,
+  actorId: string,
+  userId: string,
+  isAdmin: boolean
+): Promise<{ error: string } | undefined> {
+  if (!(await isProjectAdmin(actorId, projectId))) return { error: "You can't manage that project." };
+  await db
+    .update(projectMembers)
+    .set({ isAdmin })
+    .where(and(eq(projectMembers.projectId, projectId), eq(projectMembers.userId, userId)));
+}
 
 export async function createDemoProjectForUser(userId: string) {
   return seedDemoProject(userId);
