@@ -12,6 +12,8 @@ import {
   LayoutDashboard,
   Crown,
   KeyRound,
+  Bot,
+  BookOpen,
 } from "lucide-react";
 import { SignOutButton } from "@clerk/nextjs";
 import { requireUser, hasRole } from "@/lib/auth/rbac";
@@ -107,6 +109,24 @@ export default async function DashboardLayout({
             <KeyRound className="size-4" />
             Join project
           </Link>
+          <a
+            href="https://discord.com/oauth2/authorize?client_id=1543380430831624222&permissions=0&scope=bot%20applications.commands"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 hover:bg-muted"
+          >
+            <Bot className="size-4" />
+            Add to Discord
+          </a>
+          <a
+            href="/discord/guide"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 hover:bg-muted"
+          >
+            <BookOpen className="size-4" />
+            Discord guide
+          </a>
           {canManageTeam && (
             <Link
               href="/dashboard/team"
