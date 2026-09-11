@@ -17,6 +17,7 @@ export function ProjectNav({
     { label: "Work items", href: `/dashboard/${slug}/work-items` },
     { label: "Roadmap", href: `/dashboard/${slug}/roadmap` },
     { label: "Chat", href: `/dashboard/${slug}/chat` },
+    { label: "Ask AI", href: `/dashboard/${slug}/ask` },
     ...(canManage
       ? [{ label: "Members", href: `/dashboard/${slug}/members` }]
       : []),

@@ -17,6 +17,8 @@ import { getProjectDemoState, assertDemoCreationAllowed, incrementDemoUsage } fr
 import { logActivity } from "@/lib/activity";
 import { getDeadlineStatus, deadlineUrgencyRank } from "@/lib/deadline";
 import { formatStatusLabel } from "@/lib/work-items";
+import { setUserAiKey } from "@/lib/ai/user-keys";
+import { guessProvider, PROVIDER_LABELS, type AiProvider } from "@/lib/ai/types";
 import { resolveProjectWorkItem } from "./resolve";
 import { parseDeadlineInput } from "./deadline-parse";
 import { parseMeetingTime } from "./meeting-time";
@@ -491,6 +493,41 @@ export async function handleMyTasks(user: DiscordUser): Promise<CommandReply> {
       buildEmbed({
         title: `Your tasks (${sorted.length})`,
         description: sorted.map((r) => `**#${r.number}** ${r.title} — _${r.projectName}_ · ${formatStatusLabel(r.status)}${r.dueDate ? ` · due ${r.dueDate}` : ""}`).join("\n"),
+      }),
+    ],
+    ephemeral: true,
+  };
+}
+
+// ============ /setkey (with an inline key) ============
+
+export async function handleSetKey(
+  user: DiscordUser,
+  apiKey: string,
+  providerArg?: string
+): Promise<CommandReply> {
+  const provider: AiProvider =
+    providerArg === "gemini" || providerArg === "groq" ? providerArg : guessProvider(apiKey);
+
+  const result = await setUserAiKey(user.id, provider, apiKey);
+  if (result?.error) return fail(result.error);
+
+  await logActivity({
+    actorId: user.id,
+    action: "ai_key.set",
+    entityType: "user",
+    entityId: user.id,
+    after: { provider },
+    searchText: `Set their ${PROVIDER_LABELS[provider]} API key via Discord`,
+  });
+
+  return {
+    embeds: [
+      buildEmbed({
+        title: `${PROVIDER_LABELS[provider]} key saved`,
+        description:
+          "Verified and stored (encrypted). The **Ask AI** tab on your projects will use it now.\n\n_Since you passed it here, the key went through Discord's servers — if that's a concern, rotate it in the provider's console and set the new one from the website._",
+        color: SUCCESS_COLOR,
       }),
     ],
     ephemeral: true,

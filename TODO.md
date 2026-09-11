@@ -34,6 +34,23 @@ Check items off as they're done; add new ones as they come up.
       → Parabola → Bot → scroll to **Privileged Gateway Intents** → turn on
       **Server Members Intent** → Save Changes. No code change needed once
       it's on.
+- [ ] **Enable "Message Content Intent" for the bot** — required for the
+      "Ask AI" tab to read any Discord message text. Same portal page as
+      above: **Bot → Privileged Gateway Intents → Message Content Intent →
+      on → Save**. Without it, fetched messages come back with empty
+      content and the AI has nothing to work with.
+- [ ] **Check `ENCRYPTION_KEY` is set in Vercel production — this one's not
+      confirmed, check it yourself in the dashboard.** A CLI check for this
+      came back inconclusive (the CLI login had expired when it ran, so the
+      "not found" result can't be trusted either way). Go to Vercel →
+      Project → Settings → Environment Variables → search `ENCRYPTION_KEY`
+      → confirm it's set for **Production**. It's already in `.env.local`.
+      Two things now depend on it: the existing `/link` Discord flow (its
+      token signing), and the new "Ask AI" feature's bring-your-own-key
+      storage (each user's Gemini/Groq key, stored AES-256-GCM encrypted).
+      If it's missing, add it in Vercel with the same value as `.env.local`
+      and redeploy. No server-wide AI key is needed — users get their own
+      free key via the in-app guide at `/blog/free-ai-api-keys`.
 
 ## Known limitations (not bugs — just what the current plan allows)
 

@@ -150,6 +150,28 @@ export const discordCommands = [
   },
   { name: "mytasks", description: "Your assigned tasks across every project, most urgent first." },
   {
+    name: "setkey",
+    description: "Set your free AI API key for the Ask AI feature.",
+    options: [
+      {
+        name: "key",
+        description: "Your Gemini or Groq key. Leave blank to get a private link to set it on the website instead.",
+        type: 3,
+        required: false,
+      },
+      {
+        name: "provider",
+        description: "Which provider the key is for (auto-detected if left blank)",
+        type: 3,
+        required: false,
+        choices: [
+          { name: "Google Gemini", value: "gemini" },
+          { name: "Groq", value: "groq" },
+        ],
+      },
+    ],
+  },
+  {
     name: "test",
     description: "Check that Parabola's database and your account link are working.",
   },

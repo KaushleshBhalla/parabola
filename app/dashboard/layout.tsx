@@ -14,6 +14,7 @@ import {
   KeyRound,
   Bot,
   BookOpen,
+  Settings,
 } from "lucide-react";
 import { SignOutButton } from "@clerk/nextjs";
 import { requireUser, hasRole } from "@/lib/auth/rbac";
@@ -127,6 +128,13 @@ export default async function DashboardLayout({
             <BookOpen className="size-4" />
             Discord guide
           </a>
+          <Link
+            href="/dashboard/settings"
+            className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 hover:bg-muted"
+          >
+            <Settings className="size-4" />
+            Settings
+          </Link>
           {canManageTeam && (
             <Link
               href="/dashboard/team"

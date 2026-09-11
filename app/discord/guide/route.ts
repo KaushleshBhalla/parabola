@@ -131,6 +131,7 @@ const html = `<!doctype html>
       <a class="nav-link" href="#setmeet"><span class="hash">/</span>setmeet</a>
       <a class="nav-link" href="#mytasks"><span class="hash">/</span>mytasks</a>
       <a class="nav-link" href="#teammates"><span class="hash">/</span>teammates</a>
+      <a class="nav-link" href="#setkey"><span class="hash">/</span>setkey</a>
       <a class="nav-link" href="#test"><span class="hash">/</span>test</a>
     </div>
     <div class="nav-group">
@@ -142,6 +143,7 @@ const html = `<!doctype html>
       <a class="nav-link" href="#pro-access"><span class="hash">#</span>Request Pro access</a>
       <a class="nav-link" href="#create-project"><span class="hash">#</span>Create a project</a>
       <a class="nav-link" href="#invite-members"><span class="hash">#</span>Add members</a>
+      <a class="nav-link" href="#ask-ai"><span class="hash">#</span>Ask AI</a>
     </div>
   </nav>
 
@@ -151,7 +153,7 @@ const html = `<!doctype html>
       <h1 class="title">Parabola for Discord</h1>
       <p class="lede">Parabola, wherever your team already is. It keeps things deliberately minimal — check tasks, create and assign new ones, from Discord, across every project you're in. Creating projects and adding members lives on the website.</p>
       <div class="stat-row">
-        <div class="stat"><b>10</b><span>Slash commands</span></div>
+        <div class="stat"><b>11</b><span>Slash commands</span></div>
         <div class="stat"><b>All</b><span>Your projects, one bot</span></div>
       </div>
     </div>
@@ -303,6 +305,18 @@ const html = `<!doctype html>
         </div>
       </div>
 
+      <div class="cmd-card" id="setkey">
+        <div class="cmd-head">
+          <span class="cmd-syntax">/setkey <span class="opt">[key] [provider]</span></span>
+          <span class="badge everyone">Everyone</span>
+        </div>
+        <p class="cmd-desc">Sets the free AI API key that the website's <a href="#ask-ai">Ask AI</a> tab runs on. Pass <code>key</code> to set it right here (the reply is private, and the provider is auto-detected from the key). Leave <code>key</code> blank and Parabola DMs you a link to set it on the website instead — safer, since a key passed as a command argument still travels through Discord's servers.</p>
+        <div class="params">
+          <span class="p-name">key</span><span class="p-desc">Your Gemini (<code>AIza…</code>) or Groq (<code>gsk_…</code>) key. Verified before it's stored.</span>
+          <span class="p-name">provider</span><span class="p-desc">Gemini or Groq — auto-detected from the key if you leave it out.</span>
+        </div>
+      </div>
+
       <div class="cmd-card" id="test">
         <div class="cmd-head">
           <span class="cmd-syntax">/test</span>
@@ -336,7 +350,12 @@ const html = `<!doctype html>
 
       <div class="cmd-card" id="invite-members">
         <div class="cmd-head"><span class="cmd-syntax">Add members</span></div>
-        <p class="cmd-desc">Two ways in: from a project's Members page, any admin can add someone directly by typing their email — no code, no waiting, they need an existing Parabola account. Or share the project's join code from that same page — anyone can enter it from their own sidebar's <strong>Join project</strong> link, which either adds them instantly or files a request for an admin to approve, depending on that project's auto-approve setting (off, i.e. manual approval, by default). Either way, once they're in, they're a full member — mentionable in <code>/assign</code> and everywhere else in Discord.</p>
+        <p class="cmd-desc">Two ways in: from a project's Members page, any admin can add someone directly by typing their email — no code, no waiting, they need an existing Parabola account. Or share the project's join code from that same page — anyone can enter it from their own sidebar's <strong>Join project</strong> link, which either adds them instantly or files a request for an admin to approve, depending on that project's auto-approve setting (off, i.e. manual approval, by default). Either way you can pick whether they come in as a Member or an Admin — and change it later.</p>
+      </div>
+
+      <div class="cmd-card" id="ask-ai">
+        <div class="cmd-head"><span class="cmd-syntax">Ask AI</span></div>
+        <p class="cmd-desc">Each project has an <strong>Ask AI</strong> tab that answers questions about what your team discussed in Discord. A project admin first links one or more Discord channels to the project (paste a channel link or ID); after that, anyone on the project can ask questions, picking a time range (last 24h up to all time) and which channels to draw on. It reads those messages live and answers from them.</p>
       </div>
     </section>
 

@@ -21,6 +21,7 @@ import {
   handleMyTasks,
   handleTest,
   handleTeammates,
+  handleSetKey,
 } from "@/lib/discord/handlers";
 
 // This route's DB round trips all go to Supabase in ap-northeast-1 (Tokyo)
@@ -84,6 +85,7 @@ function guideEmbed() {
       "**/setmeet time:<e.g. 10pm today> timezone:<e.g. Indian> [project] [title]** — schedule a meeting; I'll ping every project member, right here, 5 minutes before. Project admins only.",
       "`project` is optional everywhere else above (autocomplete over every project you're in) — it defaults to your only project if you're just in one, otherwise you'll be asked to pick.",
       "**/mytasks** — your assigned tasks across every project you're in.",
+      "**/setkey** — DMs you a link to set your free AI API key, used by the website's \"Ask AI\" tab.",
       "**/test** — checks Parabola's database and your account link are working.",
       "**/teammates [project]** — server members who share a project with you, and their pending tasks in it.",
       "",
@@ -163,6 +165,30 @@ async function routeCommand(interaction: {
 
   const user = discordUserId ? await resolveUserByDiscordId(discordUserId) : null;
   if (!user) return fail("Link your account first with `/link`.");
+
+  if (commandName === "setkey") {
+    if (!discordUserId) return fail("Couldn't identify you.");
+    const inlineKey = args.key ? String(args.key).trim() : "";
+    if (inlineKey) {
+      return handleSetKey(user, inlineKey, args.provider ? String(args.provider) : undefined);
+    }
+    try {
+      await sendDirectMessage(discordUserId, {
+        embeds: [
+          buildEmbed({
+            title: "Set your AI API key",
+            description: `Open [Parabola Settings](${APP_URL}/dashboard/settings) and paste your free Gemini or Groq key there.\n\n[How to get a free key](${APP_URL}/blog/free-ai-api-keys)`,
+          }),
+        ],
+      });
+      return {
+        embeds: [buildEmbed({ title: "Check your DMs", description: "I've sent you a link to set your AI key on the website." })],
+        ephemeral: true,
+      };
+    } catch {
+      return fail("I couldn't DM you — check that you allow direct messages from server members.");
+    }
+  }
 
   if (commandName === "mytasks") {
     return handleMyTasks(user);

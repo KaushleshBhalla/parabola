@@ -51,6 +51,10 @@ export const roadmapStatusEnum = pgEnum("roadmap_status", [
   "done",
 ]);
 
+export const aiChatRoleEnum = pgEnum("ai_chat_role", ["user", "assistant"]);
+
+export const aiProviderEnum = pgEnum("ai_provider", ["gemini", "groq"]);
+
 export const attachmentEntityTypeEnum = pgEnum("attachment_entity_type", [
   "work_item",
   "roadmap_item",
@@ -499,6 +503,60 @@ export const chatMessages = pgTable(
       table.createdAt
     ),
   ]
+);
+
+// ============ AI / DISCORD CONTEXT ============
+
+// Discord channels a project's "Ask AI" feature is allowed to read from.
+// A project can link several. The bot must be able to see each channel and
+// have the Message Content Intent enabled, or fetched messages come back
+// with empty text.
+export const projectDiscordChannels = pgTable(
+  "project_discord_channels",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    discordChannelId: text("discord_channel_id").notNull(),
+    discordChannelName: text("discord_channel_name"),
+    addedBy: uuid("added_by").references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("project_discord_channels_unique_idx").on(table.projectId, table.discordChannelId),
+  ]
+);
+
+// Each user brings their own free AI API key (Gemini or Groq). Stored
+// AES-256-GCM encrypted (see lib/crypto.ts), never in plaintext, never
+// returned to the client — only keyHint is safe to show.
+export const userAiKeys = pgTable("user_ai_keys", {
+  userId: uuid("user_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  provider: aiProviderEnum("provider").notNull(),
+  keyCiphertext: text("key_ciphertext").notNull(),
+  keyHint: text("key_hint").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// The per-project "Ask AI" conversation — a running back-and-forth so the
+// model can see earlier turns, not just the latest question.
+export const aiChatMessages = pgTable(
+  "ai_chat_messages",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
+    role: aiChatRoleEnum("role").notNull(),
+    content: text("content").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("ai_chat_messages_project_created_idx").on(table.projectId, table.createdAt)]
 );
 
 // ============ ATTACHMENTS (polymorphic) ============

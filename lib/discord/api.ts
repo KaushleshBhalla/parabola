@@ -50,6 +50,73 @@ export async function listGuildMembers(guildId: string): Promise<{ user: { id: s
   return members;
 }
 
+const SNOWFLAKE_RE = /^\d{15,25}$/;
+const CHANNEL_LINK_RE = /discord(?:app)?\.com\/channels\/\d+\/(\d+)/;
+
+/** Pulls a channel id out of a raw id or a full discord.com/channels/... link. */
+export function parseChannelInput(input: string): string | null {
+  const trimmed = input.trim();
+  if (SNOWFLAKE_RE.test(trimmed)) return trimmed;
+  const m = trimmed.match(CHANNEL_LINK_RE);
+  return m ? m[1] : null;
+}
+
+/** Confirms the bot can see a channel and returns its name — null if it can't. */
+export async function getChannelInfo(
+  channelId: string
+): Promise<{ id: string; name: string | null; guildId: string | null } | null> {
+  const res = await fetch(`${DISCORD_API}/channels/${channelId}`, { headers: botHeaders() });
+  if (!res.ok) return null;
+  const c = await res.json();
+  return { id: c.id, name: c.name ?? null, guildId: c.guild_id ?? null };
+}
+
+type DiscordMessage = {
+  id: string;
+  content: string;
+  timestamp: string;
+  author: { username: string; global_name?: string | null; bot?: boolean };
+};
+
+/**
+ * Messages from one channel, newest-first, paginated backwards. Stops at
+ * `maxMessages` or once messages predate `since`. Needs the bot to have the
+ * "Message Content Intent" privileged intent enabled — without it every
+ * `content` comes back as an empty string.
+ */
+export async function fetchChannelMessages(
+  channelId: string,
+  opts: { since?: Date; maxMessages: number }
+): Promise<DiscordMessage[]> {
+  const out: DiscordMessage[] = [];
+  let before: string | undefined;
+  const sinceMs = opts.since?.getTime();
+
+  while (out.length < opts.maxMessages) {
+    const url = new URL(`${DISCORD_API}/channels/${channelId}/messages`);
+    url.searchParams.set("limit", "100");
+    if (before) url.searchParams.set("before", before);
+
+    const res = await fetch(url, { headers: botHeaders() });
+    if (!res.ok) {
+      throw new Error(`Discord fetchChannelMessages failed: ${res.status} ${await res.text()}`);
+    }
+    const page: DiscordMessage[] = await res.json();
+    if (page.length === 0) break;
+
+    for (const msg of page) {
+      if (sinceMs !== undefined && new Date(msg.timestamp).getTime() < sinceMs) {
+        return out;
+      }
+      out.push(msg);
+      if (out.length >= opts.maxMessages) return out;
+    }
+    before = page[page.length - 1].id;
+    if (page.length < 100) break;
+  }
+  return out;
+}
+
 export async function sendDirectMessage(
   discordUserId: string,
   body: { content?: string; embeds?: unknown[] }
