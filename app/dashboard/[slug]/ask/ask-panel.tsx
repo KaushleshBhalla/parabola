@@ -2,7 +2,7 @@
 
 import { useRef, useState, useTransition } from "react";
 import Link from "next/link";
-import { Send, Trash2, Plus, X, Sparkles, KeyRound } from "lucide-react";
+import { Send, Trash2, Plus, X, Sparkles, KeyRound, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -21,6 +21,7 @@ import {
   removeDiscordChannel,
 } from "./actions";
 import type { TimeRange } from "@/lib/ai/discord-context";
+import type { AiProvider } from "@/lib/ai/types";
 
 type Message = { id: string; role: "user" | "assistant"; content: string; createdAt: Date };
 type Channel = { id: string; name: string | null };
@@ -33,27 +34,33 @@ const RANGE_LABELS: Record<TimeRange, string> = {
   all: "All time",
 };
 
+const PROVIDER_LABELS: Record<AiProvider, string> = { gemini: "Gemini", groq: "Groq" };
+
 export function AskPanel({
   slug,
+  projectName,
   initialMessages,
   channels,
   canManage,
-  hasKey,
+  availableProviders,
 }: {
   slug: string;
+  projectName: string;
   initialMessages: Message[];
   channels: Channel[];
   canManage: boolean;
-  hasKey: boolean;
+  availableProviders: AiProvider[];
 }) {
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [question, setQuestion] = useState("");
   const [range, setRange] = useState<TimeRange>("7d");
+  const [provider, setProvider] = useState<AiProvider | undefined>(availableProviders[0]);
   const [selectedChannels, setSelectedChannels] = useState<string[]>(channels.map((c) => c.id));
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [contextNote, setContextNote] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const hasKey = availableProviders.length > 0;
 
   const [newChannel, setNewChannel] = useState("");
   const [channelError, setChannelError] = useState<string | null>(null);
@@ -65,14 +72,14 @@ export function AskPanel({
 
   function handleAsk() {
     const q = question.trim();
-    if (!q || pending) return;
+    if (!q || pending || !provider) return;
     setError(null);
     setContextNote(null);
     const userMsg: Message = { id: `tmp-${Date.now()}`, role: "user", content: q, createdAt: new Date() };
     setMessages((m) => [...m, userMsg]);
     setQuestion("");
     startTransition(async () => {
-      const result = await askAi(slug, q, { range, channelIds: selectedChannels });
+      const result = await askAi(slug, q, { range, channelIds: selectedChannels, provider });
       if ("error" in result) {
         setError(result.error);
         setMessages((m) => m.filter((x) => x.id !== userMsg.id));
@@ -106,16 +113,43 @@ export function AskPanel({
     });
   }
 
+  function handleExport() {
+    const lines = [
+      `# Ask AI — ${projectName}`,
+      ``,
+      `Exported ${new Date().toLocaleString()}`,
+      ``,
+      ...messages.map(
+        (m) => `**${m.role === "user" ? "You" : "AI"}** (${m.createdAt.toLocaleString()}):\n\n${m.content}\n`
+      ),
+    ];
+    const blob = new Blob([lines.join("\n")], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${slug}-ask-ai-${new Date().toISOString().slice(0, 10)}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <div className="mx-auto flex h-full w-full max-w-3xl flex-col gap-4 px-6 py-6">
-      <div>
-        <h1 className="flex items-center gap-2 font-heading text-xl font-semibold">
-          <Sparkles className="size-5 text-primary" />
-          Ask AI
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          Ask questions about what your team discussed in the linked Discord channels.
-        </p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="flex items-center gap-2 font-heading text-xl font-semibold">
+            <Sparkles className="size-5 text-primary" />
+            Ask AI
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Ask questions about what your team discussed in the linked Discord channels.
+          </p>
+        </div>
+        {messages.length > 0 && (
+          <Button size="sm" variant="outline" onClick={handleExport}>
+            <Download className="size-3.5" />
+            Export .md
+          </Button>
+        )}
       </div>
 
       {!hasKey && (
@@ -134,6 +168,24 @@ export function AskPanel({
               </Link>
             </p>
           </div>
+        </div>
+      )}
+
+      {hasKey && availableProviders.length > 1 && (
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <span>Ask with:</span>
+          <Select value={provider} onValueChange={(v) => setProvider(v as AiProvider)}>
+            <SelectTrigger className="h-7 w-28 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {availableProviders.map((p) => (
+                <SelectItem key={p} value={p}>
+                  {PROVIDER_LABELS[p]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       )}
 
@@ -261,10 +313,10 @@ export function AskPanel({
             }}
             placeholder="Ask about the team's Discord discussions…"
             rows={2}
-            disabled={pending}
+            disabled={pending || !hasKey}
             className="flex-1 resize-none"
           />
-          <Button onClick={handleAsk} disabled={pending || !question.trim()}>
+          <Button onClick={handleAsk} disabled={pending || !hasKey || !question.trim()}>
             <Send className="size-4" />
           </Button>
         </div>

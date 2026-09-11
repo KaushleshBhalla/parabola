@@ -528,19 +528,24 @@ export const projectDiscordChannels = pgTable(
   ]
 );
 
-// Each user brings their own free AI API key (Gemini or Groq). Stored
-// AES-256-GCM encrypted (see lib/crypto.ts), never in plaintext, never
-// returned to the client — only keyHint is safe to show.
-export const userAiKeys = pgTable("user_ai_keys", {
-  userId: uuid("user_id")
-    .primaryKey()
-    .references(() => users.id, { onDelete: "cascade" }),
-  provider: aiProviderEnum("provider").notNull(),
-  keyCiphertext: text("key_ciphertext").notNull(),
-  keyHint: text("key_hint").notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+// Each user brings their own free AI API key(s) — one per provider (Gemini
+// and/or Groq), so a question can be answered with whichever they choose.
+// Stored AES-256-GCM encrypted (see lib/crypto.ts), never in plaintext,
+// never returned to the client — only keyHint is safe to show.
+export const userAiKeys = pgTable(
+  "user_ai_keys",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    provider: aiProviderEnum("provider").notNull(),
+    keyCiphertext: text("key_ciphertext").notNull(),
+    keyHint: text("key_hint").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.provider] })]
+);
 
 // The per-project "Ask AI" conversation — a running back-and-forth so the
 // model can see earlier turns, not just the latest question.

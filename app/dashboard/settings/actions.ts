@@ -18,8 +18,8 @@ export async function saveAiKey(
   revalidatePath("/dashboard/settings");
 }
 
-export async function removeAiKey() {
+export async function removeAiKey(provider: AiProvider) {
   const user = await requireUser();
-  await clearUserAiKey(user.id);
+  await clearUserAiKey(user.id, provider);
   revalidatePath("/dashboard/settings");
 }

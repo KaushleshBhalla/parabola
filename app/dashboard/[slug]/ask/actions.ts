@@ -9,6 +9,7 @@ import { getProjectBySlug } from "@/lib/projects";
 import { logActivity } from "@/lib/activity";
 import { askAiProvider, type AiTurn } from "@/lib/ai/providers";
 import { getUserAiKey } from "@/lib/ai/user-keys";
+import type { AiProvider } from "@/lib/ai/types";
 import {
   buildDiscordContext,
   addProjectDiscordChannel,
@@ -21,7 +22,7 @@ const HISTORY_LIMIT = 20; // prior turns handed back to the model
 export async function askAi(
   slug: string,
   question: string,
-  opts: { range: TimeRange; channelIds: string[] }
+  opts: { range: TimeRange; channelIds: string[]; provider: AiProvider }
 ): Promise<{ error: string } | { answer: string; contextSummary: string }> {
   const user = await requireUser();
   const project = await getProjectBySlug(slug);
@@ -31,9 +32,9 @@ export async function askAi(
   const trimmed = question.trim();
   if (!trimmed) return { error: "Ask something first." };
 
-  const key = await getUserAiKey(user.id);
+  const key = await getUserAiKey(user.id, opts.provider);
   if (!key) {
-    return { error: "Add your own free AI API key in Settings first — Ask AI uses your key, not a shared one." };
+    return { error: `Add your ${opts.provider === "gemini" ? "Gemini" : "Groq"} API key in Settings first — Ask AI uses your own key, not a shared one.` };
   }
 
   const context = await buildDiscordContext(project.id, { range: opts.range, channelIds: opts.channelIds });

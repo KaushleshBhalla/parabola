@@ -5,7 +5,7 @@ import { aiChatMessages } from "@/lib/db/schema";
 import { requireUser } from "@/lib/auth/rbac";
 import { isProjectAdmin } from "@/lib/project-access";
 import { listProjectDiscordChannels } from "@/lib/ai/discord-context";
-import { getUserAiKeyInfo } from "@/lib/ai/user-keys";
+import { listUserAiKeys } from "@/lib/ai/user-keys";
 import { getProjectBySlug } from "@/lib/projects";
 import { AskPanel } from "./ask-panel";
 
@@ -23,7 +23,7 @@ export default async function AskAiPage({
   const [user, project] = await Promise.all([requireUser(), getProjectBySlug(slug)]);
   if (!project) notFound();
 
-  const [messages, channels, canManage, keyInfo] = await Promise.all([
+  const [messages, channels, canManage, keys] = await Promise.all([
     db
       .select({
         id: aiChatMessages.id,
@@ -36,16 +36,17 @@ export default async function AskAiPage({
       .orderBy(asc(aiChatMessages.createdAt)),
     listProjectDiscordChannels(project.id),
     isProjectAdmin(user.id, project.id),
-    getUserAiKeyInfo(user.id),
+    listUserAiKeys(user.id),
   ]);
 
   return (
     <AskPanel
       slug={slug}
+      projectName={project.name}
       initialMessages={messages}
       channels={channels.map((c) => ({ id: c.discordChannelId, name: c.name }))}
       canManage={canManage}
-      hasKey={!!keyInfo}
+      availableProviders={keys.map((k) => k.provider)}
     />
   );
 }
