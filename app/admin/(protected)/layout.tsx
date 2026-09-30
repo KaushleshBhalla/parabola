@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { auth } from "@clerk/nextjs/server";
 import { requirePlatformAdmin } from "@/lib/auth/rbac";
 
 export default async function AdminLayout({
@@ -6,6 +8,12 @@ export default async function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
+  // Check auth before requirePlatformAdmin() — its underlying requireUser()
+  // redirects unauthenticated visitors to the regular /login, but admin
+  // routes get their own /admin/login instead.
+  const { userId } = await auth();
+  if (!userId) redirect("/admin/login");
+
   await requirePlatformAdmin();
 
   return (
