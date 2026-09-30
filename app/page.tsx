@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { ArrowRight, ListTodo, Map, MessagesSquare, Users } from "lucide-react";
 
+import { ParabolaHero } from "@/components/site/parabola-hero";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -43,30 +45,39 @@ export default function Home() {
         <span className="font-heading text-lg font-semibold tracking-tight">
           Parabola
         </span>
-        <Button
-          variant="ghost"
-          size="sm"
-          nativeButton={false}
-          render={<Link href="/login" />}
-        >
-          Sign in
-        </Button>
+        <div className="flex items-center gap-2">
+          <ThemeToggle />
+          <Button
+            variant="ghost"
+            size="sm"
+            nativeButton={false}
+            render={<Link href="/login" />}
+          >
+            Sign in
+          </Button>
+        </div>
       </header>
 
       <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col items-center px-6">
-        <section className="flex flex-col items-center gap-6 py-24 text-center sm:py-32">
-          <h1 className="max-w-2xl text-4xl font-semibold tracking-tight text-balance sm:text-5xl">
-            Plan, track, and ship work in one place
-          </h1>
-          <p className="max-w-xl text-lg text-muted-foreground text-balance">
-            Parabola brings work items, roadmaps, and team chat together so
-            your team always knows what&apos;s next.
-          </p>
-          <div className="flex flex-col gap-3 sm:flex-row">
-            <Button size="lg" nativeButton={false} render={<Link href="/login" />}>
-              Sign in
-              <ArrowRight />
-            </Button>
+        <section className="flex w-full flex-col items-center gap-10 py-16 sm:py-20">
+          <div className="w-full max-w-3xl">
+            <ParabolaHero />
+          </div>
+
+          <div className="flex flex-col items-center gap-6 text-center">
+            <h1 className="max-w-2xl text-4xl font-semibold tracking-tight text-balance sm:text-5xl">
+              Plan, track, and ship work in one place
+            </h1>
+            <p className="max-w-xl text-lg text-muted-foreground text-balance">
+              Parabola brings work items, roadmaps, and team chat together so
+              your team always knows what&apos;s next.
+            </p>
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <Button size="lg" nativeButton={false} render={<Link href="/login" />}>
+                Sign in
+                <ArrowRight />
+              </Button>
+            </div>
           </div>
         </section>
 
